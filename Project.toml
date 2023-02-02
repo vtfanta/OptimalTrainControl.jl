@@ -1,0 +1,13 @@
+name = "RailDynamics"
+uuid = "def5d3d9-a34b-4daf-bc22-0581843f8b2c"
+authors = ["Vít Fanta <fantavit@fel.cvut.cz> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1.8.3"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

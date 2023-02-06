@@ -5,7 +5,7 @@ DocMeta.setdocmeta!(RailDynamics, :DocTestSetup, :(using RailDynamics); recursiv
 
 makedocs(;
     modules=[RailDynamics],
-    authors="Vít Fanta <fantavit@fel.cvut.cz> and contributors",
+    authors="Vít Fanta <fantavit@fel.cvut.cz>",
     repo="https://github.com/vtfanta/RailDynamics.jl/blob/{commit}{path}#{line}",
     sitename="RailDynamics.jl",
     format=Documenter.HTML(;

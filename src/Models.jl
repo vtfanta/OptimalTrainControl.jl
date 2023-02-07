@@ -1,21 +1,30 @@
 # module Models
-
-export AlbrechtModel
-
 using Reexport
 using Parameters
 using DifferentialEquations
+using Unitful
 
 @reexport using RailDynamics
 
 export BasicScenario, DavisResistance, AlbrechtModel
 export play, controllaw
 
+mutable struct MinimalTimeScenario <: Scenario
+    model::Model
+    track::Track
+    g::Real
+    initialvalues
+    finalvalues
+    controllaw
+end
+MinimalTimeScenario(model, track, g, iv, fv) = MinimalTimeScenario(model, track, g, iv, fv, nothing)
+
 struct BasicScenario <: Scenario
     model::Model
     track::Track
     g::Real
 end
+BasicScenario(m, t) = BasicScenario(m, t, 9.81u"m/s^2")
 
 """
 Empirical formula originally calculated for freight cars. The resistance (in N/kg) is given by
@@ -36,17 +45,44 @@ struct AlbrechtModel <: Model
 end
 
 function play(s::BasicScenario, initialvalues)
-    X = 100.0
-    prob = ODEProblem(odefun(s), initialvalues, (0.0, X))
+    X = 100.0u"m"
+    prob = ODEProblem(odefun(s), initialvalues, (0.0u"m", X))
     solve(prob)
 end
 
-function odefun(s::Scenario)
+function odefun(s::BasicScenario)
     m = s.model
     return function _odefun!(du, u, p, t)
         du[1] = inv(u[2])
-        du[2] = (controllaw(m, u, p, t) - resistance(m.resistance, u) + inclinationforce(s, t)) * inv(u[2])
+        du[2] = (m.maxcontrol - resistance(m.resistance, u) + inclinationforce(s, t)) * inv(u[2])
     end
+end
+
+function odefun(s::MinimalTimeScenario)
+    m = s.model
+    function _odefun!(du, u, p, t)
+        du[1] = inv(u[2])
+        du[2] = (s.controllaw(u, p, t) - resistance(m.resistance, u) + 
+            inclinationforce(s, t)) * inv(u[2])
+    end
+end
+
+function calculatecontrol(s::MinimalTimeScenario)
+    function _maxthrottle!(du, u, p, t)
+        du[1] = inv(u[2])
+        du[2] = (s.model.maxcontrol - resistance(m.resistance, u) + 
+            inclinationforce(s, t)) * inv(u[2])
+    end
+    function _maxbrake!(du, u, p, t)
+        du[1] = inv(u[2])
+        du[2] = (s.model.mincontrol - resistance(m.resistance, u) + 
+            inclinationforce(s, t)) * inv(u[2])
+    end
+
+    throttleprob = ODEProblem(_maxthrottle!, s.initialvalues, (0.0, length(s.track)))
+    brakeprob = ODEProblem(_maxbrake!, s.finalvalues, (length(s.track), 0))
+
+    
 end
 
 function controllaw(m::Model, u, p, t)

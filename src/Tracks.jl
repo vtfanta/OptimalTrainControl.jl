@@ -11,22 +11,29 @@ export getgrade, inclinationforce
 struct FlatTrack <: Track end
 
 struct HillyTrack <: Track 
-    waypoint::DataFrame
+    waypoints::DataFrame
     interpolator
 end
 
 HillyTrack(df::DataFrame) = HillyTrack(df, linear_interpolation(df[:,:Distance], df[:,:Altitude];extrapolation_bc=Line()))
 
 function HillyTrack(filepath::AbstractString) 
-    dfcandidate = CSV.read(filepath, DataFrame)
+    dfcandidate = rename!(CSV.read(filepath, DataFrame), [:Distance, :Altitude])
     if length(names(dfcandidate)) > 2
-        dfcandidate = CSV.read(filepath, DataFrame; transpose = true)
+        dfcandidate = rename!(CSV.read(filepath, DataFrame; transpose = true), 
+            [:Distance, :Altitude])
     end
-    return rename(dfcandidate, [:Distance, :Altitude])
+    HillyTrack(dfcandidate)
 end
 
-HillyTrack(X::AbstractVector{<:Real}, Y::AbstractVector{<:Real}) = HillyTrack(
-    DataFrame("Distance" => X, "Altitude" => Y))
+function length(t::HillyTrack)
+    maximum(t.waypoints[:,:Distance])
+end
+
+function HillyTrack(X::AbstractVector{<:Real}, Y::AbstractVector{<:Real}) 
+    df = DataFrame("Distance" => X, "Altitude" => Y) 
+    HillyTrack(df, linear_interpolation(df[:,:Distance], df[:,:Altitude]; extrapolation_bc=Line()))
+end
 
 """
 Get the grade (in radians) of a flat track at the given position.

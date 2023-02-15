@@ -8,7 +8,9 @@ using Reexport
 export FlatTrack, HillyTrack
 export getgrade, inclinationforce
 
-struct FlatTrack <: Track end
+struct FlatTrack <: Track 
+    X::Real
+end
 
 struct HillyTrack <: Track 
     waypoints::DataFrame
@@ -24,6 +26,10 @@ function HillyTrack(filepath::AbstractString)
             [:Distance, :Altitude])
     end
     HillyTrack(dfcandidate)
+end
+
+function length(t::FlatTrack)
+    t.X
 end
 
 function length(t::HillyTrack)

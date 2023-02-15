@@ -3,11 +3,12 @@ using Reexport
 using Parameters
 using DifferentialEquations
 using Unitful
+using Interpolations
 
 @reexport using RailDynamics
 
-export BasicScenario, DavisResistance, AlbrechtModel
-export play, controllaw
+export BasicScenario, DavisResistance, AlbrechtModel, MinimalTimeScenario
+export play, controllaw, calculatecontrol!
 
 mutable struct MinimalTimeScenario <: Scenario
     model::Model
@@ -39,22 +40,34 @@ end
 
 struct AlbrechtModel <: Model
     resistance::Resistance
-    maxcontrol::Real
-    mincontrol::Real
+    maxcontrol
+    mincontrol
     mass::Real
 end
 
 function play(s::BasicScenario, initialvalues)
-    X = 100.0u"m"
-    prob = ODEProblem(odefun(s), initialvalues, (0.0u"m", X))
+    X = 100.0
+    prob = ODEProblem(odefun(s), initialvalues, (0.0, X))
     solve(prob)
+end
+
+function play(s::MinimalTimeScenario)
+    prob = ODEProblem(odefun(s), s.initialvalues, (0.0, length(s.track)))
+    sol = solve(prob)
+end
+
+function odefun(s::MinimalTimeScenario)
+    m = s.model
+    return function (du, u, p, t)
+        du[1] = (s.controllaw(t) - resistance(m.resistance, u[1]) + inclinationforce(s, t)) * inv(u[1])
+    end
 end
 
 function odefun(s::BasicScenario)
     m = s.model
-    return function _odefun!(du, u, p, t)
+    return function (du, u, p, t)
         du[1] = inv(u[2])
-        du[2] = (m.maxcontrol - resistance(m.resistance, u) + inclinationforce(s, t)) * inv(u[2])
+        du[2] = (m.maxcontrol(u[2]) - resistance(m.resistance, u) + inclinationforce(s, t)) * inv(u[2])
     end
 end
 
@@ -67,22 +80,35 @@ function odefun(s::MinimalTimeScenario)
     end
 end
 
-function calculatecontrol(s::MinimalTimeScenario)
+function calculatecontrol!(s::MinimalTimeScenario)
     function _maxthrottle!(du, u, p, t)
-        du[1] = inv(u[2])
-        du[2] = (s.model.maxcontrol - resistance(m.resistance, u) + 
-            inclinationforce(s, t)) * inv(u[2])
+        du[1] = (s.model.maxcontrol(u[1]) - resistance(s.model.resistance, u) + 
+            inclinationforce(s, t)) * inv(u[1])
     end
     function _maxbrake!(du, u, p, t)
-        du[1] = inv(u[2])
-        du[2] = (s.model.mincontrol - resistance(m.resistance, u) + 
-            inclinationforce(s, t)) * inv(u[2])
+        du[1] = (s.model.mincontrol(u[1]) - resistance(s.model.resistance, u) + 
+            inclinationforce(s, t)) * inv(u[1])
     end
 
     throttleprob = ODEProblem(_maxthrottle!, s.initialvalues, (0.0, length(s.track)))
     brakeprob = ODEProblem(_maxbrake!, s.finalvalues, (length(s.track), 0))
 
-    
+    throttlesol = solve(throttleprob)
+    brakesol = solve(brakeprob)
+
+    throttleinterpolator = linear_interpolation(throttlesol.t, throttlesol.u)
+    brakeinterpolator = linear_interpolation(reverse(cat(brakesol.t, [0.0], dims = 1)), reverse(cat(brakesol.u, [last(brakesol.u)], dims = 1)))
+
+    s.controllaw = 
+        function (v) 
+            vt = throttleinterpolator(v)
+            vb = brakeinterpolator(v)
+            if vt ≤ vb
+                s.model.maxcontrol(vt[1])
+            else
+                s.model.mincontrol(vb[1])
+            end
+        end
 end
 
 function controllaw(m::Model, u, p, t)
@@ -96,7 +122,11 @@ Calculate the Davis formula resistant force per unit mass.
 where v is the vehicle speed and a, b and c are the resistance parameters.
 """
 function resistance(r::DavisResistance, u)
-    r.a + r.b * u[2] + r.c * u[2]^2
+    if Base.length(u) > 1
+        r.a + r.b * u[2] + r.c * u[2]^2
+    else
+        r.a + r.b * u[1] + r.c * u[1]^2
+    end
 end
 
 # end # module

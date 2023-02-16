@@ -3,12 +3,35 @@ using Reexport
 using Parameters
 using DifferentialEquations
 using Unitful
+using Roots
 using Interpolations
+using ForwardDiff: derivative
 
 @reexport using RailDynamics
 
-export BasicScenario, DavisResistance, AlbrechtModel, MinimalTimeScenario
+export BasicScenario, MinimalTimeScenario, OptimalScenario
+export Resistance
+export AlbrechtModel
 export play, controllaw, calculatecontrol!
+
+mutable struct OptimalScenario <: Scenario
+    model::Model
+    track::Track
+    g::Real
+    initialvalues
+    finalvalues
+    V
+    W
+    controllaw
+end
+function OptimalScenario(m, t, g, iv, fv, V)
+    f(x) = x + ψ(m.resistance, V)
+    b = find_zero((f, x -> derivative(f, x)), 10, Roots.Newton())
+    h(x) = b + m.ρ * ψ(m.resistance, x)
+    W = find_zero((h, x -> derivative(h, x)), 10, Roots.Newton())
+
+    OptimalScenario(m, t, g, iv, fv, V, W, nothing)
+end
 
 mutable struct MinimalTimeScenario <: Scenario
     model::Model
@@ -43,7 +66,9 @@ struct AlbrechtModel <: Model
     maxcontrol
     mincontrol
     mass::Real
+    ρ::Real
 end
+AlbrechtModel(r, ma, mi, m) = AlbrechtModel(r, ma, mi, m, 0.0)
 
 function play(s::BasicScenario, initialvalues)
     X = 100.0
@@ -52,8 +77,33 @@ function play(s::BasicScenario, initialvalues)
 end
 
 function play(s::MinimalTimeScenario)
+    if isnothing(s.controllaw)
+        error("The scenario does not have a control law. Try running `calculatecontrols!(scenario)`.")
+    end
+
     prob = ODEProblem(odefun(s), s.initialvalues, (0.0, length(s.track)))
     sol = solve(prob)
+end
+
+function odefun(s::OptimalScenario)
+    m = s.model
+    return function (du, u, p, t)
+        v = u[2]
+        μ₂ = u[3]
+
+        η = μ₂ * inv(v) - 1
+        ζ = η + 1 - m.ρ
+
+        μ₁ = -ψ(m.resistance, s.V)
+
+        du[1] = inv(v)
+        du[2] = (m.controllaw(t, v, η, ζ) - resistance(m.resistance, v) + 
+            inclinationforce(s, t)) * inv(v)
+        du[3] = μ₁ / v^2 + μ₂ * du[2] * inv(v) + 
+            μ₂ * ψ(m.resistance, v) * inv(v)^3 - 
+            (η > 0 ? η : 0) * derivative(m.maxcontrol, v) + 
+            (ζ < 0 ? -ζ : 0) * derivative(m.mincontrol, v)
+    end
 end
 
 function odefun(s::MinimalTimeScenario)
@@ -71,13 +121,8 @@ function odefun(s::BasicScenario)
     end
 end
 
-function odefun(s::MinimalTimeScenario)
-    m = s.model
-    function _odefun!(du, u, p, t)
-        du[1] = inv(u[2])
-        du[2] = (s.controllaw(u, p, t) - resistance(m.resistance, u) + 
-            inclinationforce(s, t)) * inv(u[2])
-    end
+function calculatecontrol!(s::OptimalScenario)
+    # TODO
 end
 
 function calculatecontrol!(s::MinimalTimeScenario)
@@ -97,13 +142,13 @@ function calculatecontrol!(s::MinimalTimeScenario)
     brakesol = solve(brakeprob)
 
     throttleinterpolator = linear_interpolation(throttlesol.t, throttlesol.u)
-    brakeinterpolator = linear_interpolation(reverse(cat(brakesol.t, [0.0], dims = 1)), reverse(cat(brakesol.u, [last(brakesol.u)], dims = 1)))
+    brakeinterpolator = linear_interpolation(reverse(brakesol.t), reverse(brakesol.u))
 
     s.controllaw = 
-        function (v) 
-            vt = throttleinterpolator(v)
-            vb = brakeinterpolator(v)
-            if vt ≤ vb
+        function (x) 
+            vt = throttleinterpolator(x)
+            vb = brakeinterpolator(x)
+            if vt < vb - [0.1]
                 s.model.maxcontrol(vt[1])
             else
                 s.model.mincontrol(vb[1])
@@ -112,13 +157,15 @@ function calculatecontrol!(s::MinimalTimeScenario)
 end
 
 function controllaw(m::Model, u, p, t)
-    # Pedal to the floor default
+    # All gas, no brakes
     m.maxcontrol
 end
 
 """
 Calculate the Davis formula resistant force per unit mass.
+
     R = a + b * v + c * v^2,
+
 where v is the vehicle speed and a, b and c are the resistance parameters.
 """
 function resistance(r::DavisResistance, u)
@@ -126,6 +173,14 @@ function resistance(r::DavisResistance, u)
         r.a + r.b * u[2] + r.c * u[2]^2
     else
         r.a + r.b * u[1] + r.c * u[1]^2
+    end
+end
+
+function ψ(r::DavisResistance, u)
+    if Base.length(u) > 1
+        u[2]^2 * (r.b + 2r.c * u[2])
+    else
+        u[1]^2 * (r.b + 2r.c * u[1])
     end
 end
 

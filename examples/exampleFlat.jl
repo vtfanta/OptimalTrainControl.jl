@@ -8,13 +8,15 @@ mymodel = AlbrechtModel(myresistance, v -> inv(max(5., v)), v -> -inv(max(5., v)
 
 myscenario = MinimalTimeScenario(mymodel, FlatTrack(30e3), 9.81, [0.5], [0.5])
 
-calculatecontrol!(myscenario)
+ts, bs = calculatecontrol!(myscenario);
 
 sol = play(myscenario)
 
-plot(sol)
+plot(sol, label = "Result")
+plot!(ts, label = "Throttle")
+plot!(reverse(bs.t), reverse(bs[1,:]), label = "Brake")
 
 # Total time calculation
-velocity = [c[1] for c in sol.u]
+velocity = sol[1,:]
 T = integrate(sol.t, inv.(velocity))
 t = cumul_integrate(sol.t, inv.(velocity))

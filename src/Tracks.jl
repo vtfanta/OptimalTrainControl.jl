@@ -1,6 +1,6 @@
 using DataFrames
 using CSV
-using Interpolations
+using BasicInterpolators
 using Reexport
 
 @reexport using RailDynamics
@@ -38,7 +38,7 @@ end
 
 function HillyTrack(X::AbstractVector{<:Real}, Y::AbstractVector{<:Real}) 
     df = DataFrame("Distance" => X, "Altitude" => Y) 
-    HillyTrack(df, linear_interpolation(df[:,:Distance], df[:,:Altitude]; extrapolation_bc=Line()))
+    HillyTrack(df, LinearInterpolator(X, Y, NoBoundaries()))
 end
 
 """

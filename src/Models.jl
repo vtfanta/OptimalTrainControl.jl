@@ -4,13 +4,13 @@ using Parameters
 using DifferentialEquations
 using Unitful
 using Roots
-using Interpolations
+using BasicInterpolators
 using ForwardDiff: derivative
 
 @reexport using RailDynamics
 
 export BasicScenario, MinimalTimeScenario, OptimalScenario
-export Resistance
+export DavisResistance
 export AlbrechtModel
 export play, controllaw, calculatecontrol!
 
@@ -81,8 +81,12 @@ function play(s::MinimalTimeScenario)
         error("The scenario does not have a control law. Try running `calculatecontrols!(scenario)`.")
     end
 
+    condition(u, t, int) = u[1] ≤ s.finalvalues[1]
+    affect!(int) = terminate!(int)    
+    cb = DiscreteCallback(condition, affect!)
+
     prob = ODEProblem(odefun(s), s.initialvalues, (0.0, length(s.track)))
-    sol = solve(prob)
+    sol = solve(prob, callback = cb)
 end
 
 function odefun(s::OptimalScenario)
@@ -109,7 +113,7 @@ end
 function odefun(s::MinimalTimeScenario)
     m = s.model
     return function (du, u, p, t)
-        du[1] = (s.controllaw(t) - resistance(m.resistance, u[1]) + inclinationforce(s, t)) * inv(u[1])
+        du[1] = (s.controllaw(u, t) - resistance(m.resistance, u[1]) + inclinationforce(s, t)) * inv(u[1])
     end
 end
 
@@ -135,25 +139,33 @@ function calculatecontrol!(s::MinimalTimeScenario)
             inclinationforce(s, t)) * inv(u[1])
     end
 
+    @info "Calculating the time-optimal strategy"
+
     throttleprob = ODEProblem(_maxthrottle!, s.initialvalues, (0.0, length(s.track)))
     brakeprob = ODEProblem(_maxbrake!, s.finalvalues, (length(s.track), 0))
 
     throttlesol = solve(throttleprob)
     brakesol = solve(brakeprob)
 
-    throttleinterpolator = linear_interpolation(throttlesol.t, throttlesol.u)
-    brakeinterpolator = linear_interpolation(reverse(brakesol.t), reverse(brakesol.u))
+    @show brakesol[1,1]
+
+    throttleinterpolator = 
+        CubicSplineInterpolator(throttlesol.t, throttlesol[1,:], WeakBoundaries())
+    brakeinterpolator = 
+        CubicSplineInterpolator(reverse(brakesol.t), reverse(brakesol[1,:]), WeakBoundaries())
+
+    switchingpoint = 
+        find_zero(x -> throttleinterpolator(x) - brakeinterpolator(x), 1.0)
 
     s.controllaw = 
-        function (x) 
-            vt = throttleinterpolator(x)
-            vb = brakeinterpolator(x)
-            if vt < vb - [0.1]
-                s.model.maxcontrol(vt[1])
+        function (u, t) 
+            if t ≤ switchingpoint
+                s.model.maxcontrol(u[1])
             else
-                s.model.mincontrol(vb[1])
+                s.model.mincontrol(u[1])
             end
         end
+    throttlesol, brakesol
 end
 
 function controllaw(m::Model, u, p, t)

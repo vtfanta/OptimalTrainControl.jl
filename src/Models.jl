@@ -12,7 +12,7 @@ using ForwardDiff: derivative
 export BasicScenario, MinimalTimeScenario, OptimalScenario
 export DavisResistance
 export AlbrechtModel
-export play, controllaw, calculatecontrol!
+export play, controllaw, calculatecontrol!, ψ, resistance
 
 mutable struct OptimalScenario <: Scenario
     model::Model
@@ -86,7 +86,10 @@ function play(s::MinimalTimeScenario)
     cb = DiscreteCallback(condition, affect!)
 
     prob = ODEProblem(odefun(s), s.initialvalues, (0.0, length(s.track)))
-    sol = solve(prob, callback = cb)
+    sol = solve(prob, 
+                dense = false, 
+                callback = cb,
+                dtmax = 200)
 end
 
 function odefun(s::OptimalScenario)
@@ -147,8 +150,6 @@ function calculatecontrol!(s::MinimalTimeScenario)
     throttlesol = solve(throttleprob)
     brakesol = solve(brakeprob)
 
-    @show brakesol[1,1]
-
     throttleinterpolator = 
         CubicSplineInterpolator(throttlesol.t, throttlesol[1,:], WeakBoundaries())
     brakeinterpolator = 
@@ -157,15 +158,18 @@ function calculatecontrol!(s::MinimalTimeScenario)
     switchingpoint = 
         find_zero(x -> throttleinterpolator(x) - brakeinterpolator(x), 1.0)
 
+    @show switchingpoint
+
     s.controllaw = 
         function (u, t) 
+            # @show t
             if t ≤ switchingpoint
                 s.model.maxcontrol(u[1])
             else
                 s.model.mincontrol(u[1])
             end
         end
-    throttlesol, brakesol
+    throttlesol, brakesol, throttleinterpolator, brakeinterpolator
 end
 
 function controllaw(m::Model, u, p, t)

@@ -26,9 +26,9 @@ mutable struct OptimalScenario <: Scenario
 end
 function OptimalScenario(m, t, g, iv, fv, V)
     f(x) = x + ψ(m.resistance, V)
-    b = find_zero((f, x -> derivative(f, x)), 10, Roots.Newton())
+    b = find_zero((f, x -> derivative(f, x)), 10 * one(V), Roots.Newton())
     h(x) = b + m.ρ * ψ(m.resistance, x)
-    W = find_zero((h, x -> derivative(h, x)), 10, Roots.Newton())
+    W = find_zero((h, x -> derivative(h, x)), 10 * one(V), Roots.Newton())
 
     OptimalScenario(m, t, g, iv, fv, V, W, nothing)
 end
@@ -158,7 +158,7 @@ function calculatecontrol!(s::MinimalTimeScenario)
     switchingpoint = 
         find_zero(x -> throttleinterpolator(x) - brakeinterpolator(x), 1.0)
 
-    @show switchingpoint
+    # @show switchingpoint
 
     s.controllaw = 
         function (u, t) 

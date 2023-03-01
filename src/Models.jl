@@ -12,7 +12,7 @@ using ForwardDiff: derivative
 export BasicScenario, MinimalTimeScenario, OptimalScenario
 export DavisResistance
 export AlbrechtModel
-export play, controllaw, calculatecontrol!, ψ, resistance
+export play, controllaw, calculatecontrol!, ψ, resistance, E
 
 mutable struct OptimalScenario <: Scenario
     model::Model
@@ -60,6 +60,9 @@ struct DavisResistance <: Resistance
     b::Real
     c::Real
 end
+
+# To allow broadcasting
+Base.broadcastable(r::DavisResistance) = Ref(r)
 
 struct AlbrechtModel <: Model
     resistance::Resistance
@@ -200,4 +203,7 @@ function ψ(r::DavisResistance, u)
     end
 end
 
+function E(r::DavisResistance, V, v)
+    ψ(r, V) / v + resistance(r, v)
+end
 # end # module

@@ -10,6 +10,9 @@ export FlatTrack, HillyTrack
 export getgrade, inclinationforce, getgradientacceleration
 export start, finish
 
+# To allow broadcasting
+Base.broadcastable(t::Track) = Ref(t)
+
 struct FlatTrack <: Track 
     X::Real
 end
@@ -131,7 +134,26 @@ function finish(t::FlatTrack)
     t.X
 end
 
-@recipe function f(track::Track)
+@recipe function f(track::FlatTrack)
+    @info "You are plotting a flat track. You are going to get what you want."
+
+    xlabel --> "Distance (m)"
+    ylabel --> "Altitude (m)"
+
+    linecolor --> :black
+
+    label --> false
+
+    @series begin
+        seriestype := :path
+
+        primary := false
+        linecolor --> :black
+        [start(track), finish(track)], [0.0, 0.0]
+    end
+end
+
+@recipe function f(track::HillyTrack)
     xlabel --> "Distance (m)"
     ylabel --> "Altitude (m)"
 
@@ -148,8 +170,6 @@ end
     else
         y = track.waypoints[!, :Altitude]
     end
-
-
 
     @series begin
         seriestype := :path

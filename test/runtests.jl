@@ -22,4 +22,9 @@ end
 
     @test all([getgrade(htvec, s) ≈ getgrade(htcsv, s) ≈ getgrade(htdfr, s)
                 for s ∈ -10:0.03:110])
+
+    flattrack = FlatTrack(100.)
+    @test start(flattrack) ≈ 0
+    @test finish(flattrack) ≈ 100
+    @test getgrade(flattrack, (finish(flattrack) - start(flattrack)) / 2) ≈ 0
 end

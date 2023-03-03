@@ -178,16 +178,16 @@ x, t, v, η = playflatoptimal(mymodel, myresistance, X, T)
 
 plot(x, v)
 
-begin
-    Vs = [5k for k = 3.0:0.3:7.0]
-    ts = [playflatfinishing(mymodel, myresistance, X, Vs[k])[2][end] for k = eachindex(Vs)]
-    plot(Vs, ts .- T)
-end
+# begin
+#     Vs = [5k for k = 3.0:0.3:7.0]
+#     ts = [playflatfinishing(mymodel, myresistance, X, Vs[k])[2][end] for k = eachindex(Vs)]
+#     plot(Vs, ts .- T)
+# end
 
-begin
-V = 26.38 # CORRECT FOR 30E3 M AND 1500 S
-# V = 26.
-x, t, v, η = playflatfinishing(mymodel, myresistance, X, V, 0.0)
-@show t[end]
-plot(x, v)
-end
+# begin
+# V = 26.38 # CORRECT FOR 30E3 M AND 1500 S
+# # V = 26.
+# x, t, v, η = playflatfinishing(mymodel, myresistance, X, V, 0.0)
+# @show t[end]
+# plot(x, v)
+# end

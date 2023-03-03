@@ -1,5 +1,17 @@
 module RailDynamics
 
+using Reexport
+using Parameters
+using DifferentialEquations
+using Unitful
+using Roots
+using BasicInterpolators
+using ForwardDiff: derivative
+using DataFrames
+using CSV
+using BasicInterpolators
+using Reexport
+using RecipesBase
 
 # export types
 export Scenario, Vehicle, Tram, Train, Track, ControlLaw, Model, Resistance

@@ -1,12 +1,4 @@
 # module Models
-using Reexport
-using Parameters
-using DifferentialEquations
-using Unitful
-using Roots
-using BasicInterpolators
-using ForwardDiff: derivative
-
 @reexport using RailDynamics
 
 export BasicScenario, MinimalTimeScenario, OptimalScenario

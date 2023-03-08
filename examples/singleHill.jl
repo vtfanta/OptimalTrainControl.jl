@@ -17,11 +17,11 @@ myresistance = DavisResistance(1e-2, 0., 1.5e-5)
 V = 10.
 
 function mycontrol(v, x)
-    # if v ≥ 10.0
-    #     resistance(myresistance, v) - getgradientacceleration(onehilltrack, x)
-    # else
+    if v ≥ V
+        resistance(myresistance, v) - getgradientacceleration(onehilltrack, x)
+    else
         1. / max(v, 5.)
-    # end
+    end
 end
 
 """
@@ -72,7 +72,7 @@ x = sol.t
 plot(x,v)
 # plot!(x,μ₂)
 
-v_int = LinearInterpolator(x, v, WeakBoundaries())
+# v_int = LinearInterpolator(x, v, WeakBoundaries())
 
-η = @. (E(myresistance, V, v_int(x)) - E(myresistance, V, V)) / (mycontrol(v_int(x), x) - resistance(myresistance, v_int(x)) + getgradientacceleration(onehilltrack, x))
-plot(η, v)
+# η = @. (E(myresistance, V, v_int(x)) - E(myresistance, V, V)) / (mycontrol(v_int(x), x) - resistance(myresistance, v_int(x)) + getgradientacceleration(onehilltrack, x))
+# plot(η, v)

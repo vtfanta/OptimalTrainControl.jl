@@ -100,7 +100,7 @@ function odefun(s::OptimalScenario)
 
         du[1] = inv(v)
         du[2] = (m.controllaw(t, v, η, ζ) - resistance(m.resistance, v) + 
-            inclinationforce(s, t)) * inv(v)
+            getgradientacceleration(s, t)) * inv(v)
         du[3] = μ₁ / v^2 + μ₂ * du[2] * inv(v) + 
             μ₂ * ψ(m.resistance, v) * inv(v)^3 - 
             (η > 0 ? η : 0) * derivative(m.maxcontrol, v) + 
@@ -111,7 +111,7 @@ end
 function odefun(s::MinimalTimeScenario)
     m = s.model
     return function (du, u, p, t)
-        du[1] = (s.controllaw(u, t) - resistance(m.resistance, u[1]) + inclinationforce(s, t)) * inv(u[1])
+        du[1] = (s.controllaw(u, t) - resistance(m.resistance, u[1]) + getgradientacceleration(s, t)) * inv(u[1])
     end
 end
 
@@ -119,7 +119,7 @@ function odefun(s::BasicScenario)
     m = s.model
     return function (du, u, p, t)
         du[1] = inv(u[2])
-        du[2] = (m.maxcontrol(u[2]) - resistance(m.resistance, u) + inclinationforce(s, t)) * inv(u[2])
+        du[2] = (m.maxcontrol(u[2]) - resistance(m.resistance, u) + getgradientacceleration(s, t)) * inv(u[2])
     end
 end
 
@@ -130,11 +130,11 @@ end
 function calculatecontrol!(s::MinimalTimeScenario)
     function _maxthrottle!(du, u, p, t)
         du[1] = (s.model.maxcontrol(u[1]) - resistance(s.model.resistance, u) + 
-            inclinationforce(s, t)) * inv(u[1])
+            getgradientacceleration(s, t)) * inv(u[1])
     end
     function _maxbrake!(du, u, p, t)
         du[1] = (s.model.mincontrol(u[1]) - resistance(s.model.resistance, u) + 
-            inclinationforce(s, t)) * inv(u[1])
+            getgradientacceleration(s, t)) * inv(u[1])
     end
 
     @info "Calculating the time-optimal strategy"

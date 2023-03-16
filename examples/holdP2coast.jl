@@ -53,10 +53,14 @@ function mycontrol(x, v, threshold)
 end
 
 V = 10.
-localenergy(450.)
+# localenergy(450.)
 
-
-xbegin = collect(400:10:460)
+# TODO find the feasible intervals programatically
+xbegin = collect(430:5:500)
 Js = [localenergy(x) for x in xbegin]
 
 scatter(xbegin, Js)
+
+plot(steephilltrack)
+plot!(twinx(), xbegin, Js, legend = false)
+

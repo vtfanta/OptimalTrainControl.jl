@@ -1,4 +1,7 @@
+import ForwardDiff: derivative
 using DifferentialEquations
+using NumericalIntegration
+using Plots
 using RailDynamics
 using Roots
 
@@ -11,6 +14,7 @@ end
 
 function __solveflat(v₀, vf, V, track::Track, res::Resistance, ρ, justswitchingpoints = false,
     maxcontrol = x -> 1. / max(5., x), mincontrol = x -> -1. / max(5., x), holdPlength = 0.0)
+    holdPstart = nothing
     function mycontrol(u, p, x)
         v = u[2]
         if p == MaxP
@@ -60,21 +64,22 @@ function __solveflat(v₀, vf, V, track::Track, res::Resistance, ρ, justswitchi
         out[4] = ρ * u[2] - u[3]
     end
     function affect!(int, idx)
+        @show int.t
         if idx == 1
             terminate!(int)
-        elseif idx == 2 && holdPlength > 0.0
-            @debug "Hitting V, to singular HoldP"
+        elseif idx == 2 && holdPlength > 0.1
+            @info "Hitting V, to singular HoldP"
             int.p = HoldP
             holdPstart = int.t
         elseif idx == 2 && holdPlength ≈ 0.0
-            @debug "Hitting V, to regular Coast"
+            @info "Hitting V, to regular Coast"
             # @show int.u[2], int.u[3]
             int.p = Coast
         elseif idx == 3
-            @debug "Ending HoldP, to regular Coast"
+            @info "Ending HoldP, to regular Coast"
             int.p = Coast
         elseif idx == 4
-            @debug "Starting MaxB"
+            @info "Starting MaxB"
             int.p = MaxB
         end
     end
@@ -82,7 +87,6 @@ function __solveflat(v₀, vf, V, track::Track, res::Resistance, ρ, justswitchi
 
     prob = ODEProblem(odefun!, [0., v₀, μ₂0], (start(track), Inf), MaxP)
 
-    holdPstart = nothing
 
     sol = solve(prob, alg_hints = [:stiff], callback = cb)
     x = sol.t
@@ -104,7 +108,6 @@ function _solveflat(v₀, vf, track, res, ρ, V, justswitchingpoints = false,
     
     x, t, v, η = __solveflat(v₀, vf, V, track, res, ρ, justswitchingpoints, maxcontrol, mincontrol)
 
-    display(plot(x,v))
 
     holdPlength = finish(track) - x[end]
     # @show holdPlength, x[end]
@@ -113,11 +116,14 @@ function _solveflat(v₀, vf, track, res, ρ, V, justswitchingpoints = false,
     while true
         x, t, v, η = __solveflat(v₀, vf, V, track, res, ρ, justswitchingpoints, maxcontrol, mincontrol, holdPlength)
         Δend = x[end] - finish(track)
-        if abs(Δend) < 10.0 || cnt >= 10
+        @show finish(track), Δend
+        if abs(Δend) < 10.0 || cnt >= 2
+            # display(plot(x,v))
             return x, t, v, η
         else
             @info "Adjusting the HoldP length"
             holdPlength -= 0.8 * Δend
+            display(plot(x,v))
             cnt += 1
         end
     end
@@ -126,25 +132,47 @@ end
 function solveflat(v₀, vf, track, res, ρ, T, justswitchingpoints = false, 
     maxcontrol = x -> 1. / max(5., x), mincontrol = x -> -1. / max(5., x))
 
+    mintimemodel = AlbrechtModel(res, maxcontrol, mincontrol, 1e3)
+    mintimescenario = MinimalTimeScenario(mintimemodel, track, 9.81, [v₀], [vf])
+    calculatecontrol!(mintimescenario)
+    sol = play(mintimescenario)
+    maxV = maximum(sol[1,:]) - 1
+    minT = integrate(sol.t, inv.(sol[1,:]))
+
+    if T ≤ minT
+        error("The requested time $T s is not feasible. Best achievable is $minT s.")
+    end
+
+    @show minT
+
+
     function timedifference(candidateV)
         _, t, _, _ = _solveflat(v₀, vf, track, res, ρ, candidateV, false, maxcontrol, mincontrol)
         t[end] - T
     end
 
-    find_zero(timedifference, [max(v₀, vf), 0]; xatol = 0.1)
+    Vs = collect(max(v₀, vf):2:maxV)
+
+    display(scatter(Vs, timedifference.(Vs)))
+
+    timedifference(finish(track) / T)
 end
 
 v₀, vf = 1.0, 1.0
 
 ρ = 0.5
 
-V = 28.3
+V = 20
 
-mytrack = FlatTrack(30e3)
+T = 1000
+
+mytrack = FlatTrack(25e3)
 
 myres = DavisResistance(1e-2, 0., 1.5e-5)
 
 x, t, v, η = _solveflat(v₀, vf, mytrack, myres, ρ, V)
 
 display(plot(η, v, xlabel = "η", ylabel = "v (m/s)", legend = false))
-plot(x, v)
+plot(x, v, xlabel = "Distance (m)", ylabel = "v (m/s)", legend = false)
+
+# solveflat(v₀, vf, mytrack, myres, ρ, T)

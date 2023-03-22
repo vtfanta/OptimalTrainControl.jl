@@ -128,6 +128,14 @@ function finish(t::FlatTrack)
     t.X
 end
 
+# TODO
+function getsteepsegments(t::HillyTrack, maxcontrol, V)
+    ret = []
+    for (idx, row) in enumerate(eachrow(t.waypoints))
+        
+    end
+end
+
 @recipe function f(track::FlatTrack)
     @info "You are plotting a flat track. You are going to get what you want."
 
@@ -155,12 +163,12 @@ end
 
     label --> false
 
-    ylim --> (0.0, 5 * maximum(track.waypoints[!, :Altitude]))
+    ylim --> (0.0, 5 * maximum(abs.(track.waypoints[!, :Altitude])))
 
     x = track.waypoints[!, :Distance]
     minalt = minimum(track.waypoints[!, :Altitude])
     if minalt ≤ 0.0
-        y = track.waypoints[!, :Altitude] .+ minalt
+        y = track.waypoints[!, :Altitude] .- minalt
     else
         y = track.waypoints[!, :Altitude]
     end

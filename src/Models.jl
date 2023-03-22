@@ -3,8 +3,29 @@
 
 export BasicScenario, MinimalTimeScenario, OptimalScenario
 export DavisResistance
-export AlbrechtModel
-export play, controllaw, calculatecontrol!, ψ, resistance, E
+export AlbrechtModel, albrecht_odefun!
+export play, controllaw, calculatecontrol!, φ, φ′, ψ, resistance, E
+export ModelParams, ControlModes
+
+
+"""
+Give the differential equations given in Albrecht et al. 2016, equations (1) and (2).
+First state is time (second), second state is speed (metre per second).
+"""
+function albrecht_odefun!(du, u, p, t)
+    du[1] = inv(u[2])
+    du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
+end
+
+ControlModes = Set([:MaxP, :HoldP, :HoldB, :Coast, :MaxB])
+
+mutable struct ModelParams
+    u
+    r
+    g
+    ρ
+    currentphase
+end
 
 mutable struct OptimalScenario <: Scenario
     model::Model
@@ -185,6 +206,14 @@ function resistance(r::DavisResistance, u)
     else
         r.a + r.b * u[1] + r.c * u[1]^2
     end
+end
+
+function φ(r::DavisResistance, v)
+    v * resistance(r, v)
+end
+
+function φ′(r::DavisResistance, v)
+    resistance(r, v) + ψ(r, v) / v^2
 end
 
 function ψ(r::DavisResistance, u)

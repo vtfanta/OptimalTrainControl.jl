@@ -49,7 +49,9 @@ c = 700
 p = ModelParams(
     (u,p,t) -> 0,
     (u,p,t) -> resistance(myresistance, u[2]),
-    (u,p,t) -> getgradientacceleration(mytrack, t)
+    (u,p,t) -> getgradientacceleration(mytrack, t),
+    0,
+    :MaxP
 )
 prob_latest = ODEProblem(albrecht_odefun!, [0.0, V], (b, Inf), p)
 condition_hitV(u, t, int) = u[2] - V
@@ -75,4 +77,5 @@ switching_point = find_zero(x -> decider(x), [a₋, a₊])
 
 plot!(twinx(), mytrack)
 
-vline!([switching_point], label = "Optimal switching point")
+vline!([switching_point], label = "Optimal switching point",
+    xlim = (a₋, c))

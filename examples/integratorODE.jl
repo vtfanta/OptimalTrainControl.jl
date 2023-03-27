@@ -1,5 +1,4 @@
 using DifferentialEquations
-using NumericalIntegration
 using Plots
 using RailDynamics
 using Roots
@@ -126,7 +125,7 @@ function solve_flat(vᵢ, track, res, V)
     # end
     if x[end] > finish(track) + 5
         V′ = find_zero(
-                V′ -> _solve_flat(vᵢ, track, res, V, V′)[1][end] - finish(track), V)
+                V′ -> _solve_flat(vᵢ, track, res, V, V′)[1][end] - finish(track), [2.,V])
 
         _solve_flat(vᵢ, track, res, V, V′)
     else
@@ -134,7 +133,7 @@ function solve_flat(vᵢ, track, res, V)
     end
 end
 
-V = 30
+V = 50
 x, t, v, η = solve_flat(1.0, FlatTrack(3e3), DavisResistance(1e-2, 0., 1.5e-5), V)
 
 plot(x, v,

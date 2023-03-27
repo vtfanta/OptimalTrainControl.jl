@@ -102,7 +102,8 @@ p = ModelParams(
     (u,p,t) -> 2. / max(5., u[2]),
     (u,p,t) -> resistance(myresistance, u[2]),
     (u,p,t) -> getgradientacceleration(steephilltrack, t),
-    
+    0,
+    :MaxP 
 )
 a₋ = b
 condition_hitV(u, t, int) = u[2] - V

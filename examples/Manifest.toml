@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "4987c32d2eeeef66b39b367e220152f8100acebc"
+project_hash = "b308c22beffefda063ee9ca9cab091bb20020454"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -297,10 +297,10 @@ uuid = "2b5f629d-d688-5b77-993f-72d75c75574e"
 version = "6.114.2"
 
 [[deps.DiffEqCallbacks]]
-deps = ["DataStructures", "DiffEqBase", "ForwardDiff", "LinearAlgebra", "Markdown", "NLsolve", "Parameters", "RecipesBase", "RecursiveArrayTools", "SciMLBase", "StaticArrays"]
-git-tree-sha1 = "485503846a90b59f3b79b39c2d818496bf50d197"
+deps = ["DataStructures", "DiffEqBase", "ForwardDiff", "LinearAlgebra", "Markdown", "NLsolve", "Parameters", "RecipesBase", "RecursiveArrayTools", "SciMLBase", "StaticArraysCore"]
+git-tree-sha1 = "b497f63a13fe37e03ed7ac72d71b72aad17b46c4"
 uuid = "459566f4-90b8-5000-8ac3-15dfb0a30def"
-version = "2.24.3"
+version = "2.26.0"
 
 [[deps.DiffEqNoiseProcess]]
 deps = ["DiffEqBase", "Distributions", "GPUArraysCore", "LinearAlgebra", "Markdown", "Optim", "PoissonRandom", "QuadGK", "Random", "Random123", "RandomNumbers", "RecipesBase", "RecursiveArrayTools", "ResettableStacks", "SciMLBase", "StaticArrays", "Statistics"]

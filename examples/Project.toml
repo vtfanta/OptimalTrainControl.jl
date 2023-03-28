@@ -2,6 +2,7 @@
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DiffEqCallbacks = "459566f4-90b8-5000-8ac3-15dfb0a30def"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 NumericalIntegration = "e7bfaba1-d571-5449-8927-abc22e82249b"
 OpenStreetMapX = "86cd37e6-c0ff-550b-95fe-21d72c8d4fc9"

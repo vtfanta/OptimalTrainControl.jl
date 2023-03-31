@@ -94,8 +94,10 @@ end
 V = 10.
 # localenergy(450.)
 
-b = 500.0
-c = 700.0
+segs = getmildsegments(steephilltrack, V, myresistance, v -> 2. / max(5., v))
+
+b = segs[2].finish
+c = segs[3].start
 
 ## Latest possible start of MaxP
 p = ModelParams(

@@ -6,7 +6,7 @@ export DavisResistance
 export AlbrechtModel, albrecht_odefun!
 export play, controllaw, calculatecontrol!, φ, φ′, ψ, resistance, E
 export ModelParams, ControlModes
-
+export Segment, getmildsegments
 
 """
 Give the differential equations given in Albrecht et al. 2016, equations (1) and (2).
@@ -19,12 +19,52 @@ end
 
 ControlModes = Set([:MaxP, :HoldP, :HoldB, :Coast, :MaxB])
 
+mutable struct Segment
+    start
+    finish
+    mode
+    entry
+    exit
+end
+Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
+Base.show(io::IO, s::Segment) = show(io,"[$(s.start)..$(s.mode)..$(s.finish)]")
+
+function getmildsegments(track, V, res, umax, ρ = 0)
+	midpoints = [(track.waypoints[k, :Distance] + track.waypoints[k + 1, :Distance]) / 2 for k ∈ 1:nrow(track.waypoints) - 1]
+	gs = [getgradientacceleration(track, x) for x in midpoints]
+	starts = [x for x in track.waypoints[1:end-1, :Distance]]
+	ends = [x for x in track.waypoints[2:end, :Distance]]
+
+	if 0 < ρ < 1
+		W = find_zero(W -> ψ(res, W) - ψ(res, V) / ρ, V)
+	end
+	
+	ret = []
+	for (i, g) in enumerate(gs)
+		if g ≤ resistance(res, V) ≤ umax(V) + g
+			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldP))
+			end
+		elseif 0 < ρ < 1 &&  +g - resistance(res, W) ≥ 0
+			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldB))
+			end
+		end
+	end 
+	insert!(ret, 1, Segment(-Inf, starts[1], :HoldP))
+	push!(ret, Segment(ends[end], Inf, :HoldP))
+end
+
 mutable struct ModelParams
     u
     r
     g
     ρ
-    currentphase
+    currentmode
 end
 
 mutable struct OptimalScenario <: Scenario

@@ -26,8 +26,8 @@ end
 
 # ╔═╡ f7f2edd4-357b-4fcd-9eec-3c9c1f854579
 begin
-trackX = [0, 16e3, 20e3, 24e3, 25e3, 28e3, 31e3, 40e3]
-trackY = [0, 0, 400, 400, 400, 400, 400, 400] ./ 9.81
+trackX = [0, 5e3, 6e3, 10e3]
+trackY = [0, 0, 100, 100] ./ 9.81
 
 mytrack = HillyTrack(trackX, trackY);
 end
@@ -55,12 +55,11 @@ begin
 		start
 		finish
 		mode
-		s
-		v
-		η
+		entry
+		exit
 	end
 	function Segment(s, f, m)
-		Segment(s, f, m, nothing, nothing, nothing)
+		Segment(s, f, m, nothing, nothing)
 	end
 	Base.show(io::IO, s::Segment) = show(io,"[$(s.start)..$(s.mode)..$(s.finish)]")
 end
@@ -80,9 +79,17 @@ function getmildsegments(track, V, res, umax, umin, ρ = 0)
 	ret = []
 	for (i, g) in enumerate(gs)
 		if g ≤ resistance(res, V) ≤ umax(V) + g
-			push!(ret, Segment(starts[i], ends[i], :HoldP))
+			if length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldP))
+			end
 		elseif 0 < ρ < 1 &&  +g - resistance(res, W) ≥ 0
-			push!(ret, Segment(starts[i], ends[i], :HoldB))
+			if length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldB))
+			end
 		end
 	end 
 	insert!(ret, 1, Segment(-Inf, starts[1], :HoldP))
@@ -96,6 +103,8 @@ begin
 end
 	
 
+# ╔═╡ 6e760fe2-a030-4e34-80af-c7edd35f2bc2
+segs
 
 # ╔═╡ fedce6c9-d6ad-45df-9fbc-917a7df55122
 function mycontrol(u, p, x)
@@ -158,7 +167,7 @@ begin
 	w(K) = 1.5e-2 + 0.127e-2√abs(K) + 0.016e-2 * K
 	R(K) = abs(K)^(3/2) * derivative(w, K)
 	gₜᵣ(K) = 0.125
-	gᵦ(K) = 0.25
+	gᵦ(K) = -0.25
 	aₜᵣ(ψ) = ψ ≥ 1 ? ψ - 1 : 0
 	aᵦ(ψ) = ψ ≥ α ? 0 : α - ψ
 	Kₛ = 63.27
@@ -167,9 +176,6 @@ begin
 	α = 0.0
 	ψₜ = -0.3414
 end
-
-# ╔═╡ 1ec8aaea-d0f7-4380-824c-d4d29a4dec76
-plot(x->derivative(P,x), start(kh_track), finish(kh_track))
 
 # ╔═╡ 7620ecaa-6a14-46c1-972e-b9c27c480b1f
 function khmelnitsky_u(ψ, K)
@@ -194,22 +200,31 @@ function khmelnitsky_odefun!(du, u, p, t)
 	# @show du[2]
 end
 
-# ╔═╡ 6e42ba06-85cf-4edf-8d05-d94bb24d50ff
-function linkage(seg1::Segment, seg2::Segment)
-	function condition!(out, u, t, int)
-		K, Ψ = u
+# ╔═╡ 1e1c6dac-163a-4c90-a264-8a6d08f48b5b
+begin
+	function kh_condition(out, u, t, int)
+		K, ψ = u
 		out[1] = K - 0.1
-		out[2] = t < seg2.start ? 1.0 : Ψ - (seg2.mode == :HoldP ? 1.0 : α)
+		# out[2] = (t ≤ segs[3].start ? 1.0 : ψ - 1.0)
+		out[2] = ψ - 1.0
 	end
-	
-	affect!(int, idx) = terminate!(int)
-	cb = VectorContinuousCallback(condition!, affect!, 2)
-	
-	function try_link(xstart)
-		prob = ODEProblem(khmelnitsky_odefun!, initvals, (xstart, seg2.finish);
-		callback = cb)
-		sol = solve(prob, Rosenbrock23())
+	kh_affect!(int, idx) = terminate!(int)
+	kh_cb = VectorContinuousCallback(kh_condition, nothing, kh_affect!,2)
+end
 
+# ╔═╡ 24207276-e322-4a97-a32b-6377230722c8
+function kh_solve(initial_states, span)
+	kh_prob = ODEProblem(khmelnitsky_odefun!, initial_states, span)
+	tstops = [r[:Distance] for r in eachrow(kh_track.waypoints)]
+	kh_sol = solve(kh_prob, Rosenbrock23(), callback = kh_cb, tstops = tstops,
+		isoutofdomain = (u,p,t) -> u[1] ≤ 1e-2)
+end
+
+# ╔═╡ ac219b32-ee86-4f9c-87fb-9b42ca8b782f
+function try_link(xstart, seg1, seg2)
+		initvals = (getgradientacceleration(kh_track, seg1.finish+1) > 0) ? [Kₛ, 1.0 - 1e-3] : [Kₛ, 1.0]
+		sol = kh_solve(initvals, (xstart, seg2.finish))
+		@info plot(sol, idxs=(1))
 		if sol.t[end] == seg2.finish
 			+Inf
 		elseif sol.t[end] < seg2.start
@@ -217,72 +232,60 @@ function linkage(seg1::Segment, seg2::Segment)
 		else
 			sol[1,end] - initvals[1]
 		end
-	end
+end
 
-	if seg1.finish == seg2.start
-		# no linkage possible on adjacent segments
-		return false
-	end
+# ╔═╡ 6e42ba06-85cf-4edf-8d05-d94bb24d50ff
+function linkage!(seg1::Segment, seg2::Segment)
+	initvals = (getgradientacceleration(kh_track, seg1.finish+1) > 0) ? [Kₛ, 1.0 - 1e-3] : [Kₛ, 1.0]
 
-	initvals = [Kₛ, 1.0]
-	leftprob = ODEProblem(khmelnitsky_odefun!, initvals, (seg1.start, seg2.finish);
-		callback = cb)
-	rightprob = ODEProblem(khmelnitsky_odefun!, initvals, (seg1.finish, seg2.finish);
-		callback = cb)
-
-	leftsol = solve(leftprob, Rosenbrock23())
-	rightsol = solve(rightprob, Rosenbrock23())
+	leftsol = kh_solve(initvals, (seg1.start, seg2.finish))
+	rightsol = kh_solve(initvals, (seg1.start, seg2.finish))
 
 	if leftsol.t[end] < seg2.start
 		# did not even reach the second segment
 		leftval = -Inf
-	elseif leftsol.retcode == :Success
+	elseif leftsol.t[end] == seg2.finish
 		# not encountering threshold value
 		leftval = +Inf
+	else
+		leftval = leftsol[1,end] - (seg2.mode == :HoldP ? 1.0 : α)
 	end
 
-	if leftsol.retcode == :Success
+	if leftsol.t[end] == seg2.finish
 		# not encountering threshold value
-		rightsol = +Inf
+		rightval = +Inf
+	elseif rightsol.t[end] < seg2.start
+		# did not even reach the second segment
+		rightval = -Inf
+	else
+		rightval = rightsol[1,end] - (seg2.mode == :HoldP ? 1.0 : α)
 	end
 
-	if leftsol == rightsol
-		# no linkage possible
-		return false
-	end
+	# if sign(leftval) == sign(rightval)
+	# 	# no linkage possible
+	# 	return leftsol, rightsol
+	# end
 
-	link = find_zero(try_link, [seg1.start, seg1.finish])
-	
+	@show leftval, rightval
+
+	link = find_zero(x->try_link(x,seg1,seg2), [seg1.start, seg1.finish]; xatol = 10.0)
+	seg1.exit = link
 end
 
 # ╔═╡ fffd0d3b-4234-40ab-9c7a-4e9b3c470f51
-linkage(S2, S3)
+link = linkage!(segs[2], segs[3])
 
-# ╔═╡ 1e1c6dac-163a-4c90-a264-8a6d08f48b5b
+# ╔═╡ 05b2638f-1f6d-4952-aae3-6823d1273ace
+try_link(segs[2].finish,segs[2],segs[3])
+
+# ╔═╡ 5bd25d6d-d09f-4a56-9a9e-110760922143
 begin
-	function kh_condition(out, u, t, int)
-		K, ψ = u
-		out[1] = K - 0.1
-		out[2] = t < S3.start ? 1.0 : ψ - 1
-	end
-	kh_affect!(int, idx) = terminate!(int)
-
-	U = SavedValues(Float64, Float64)
-	saving_cb = SavingCallback((u,t,int) -> khmelnitsky_u(u[2],u[1]), U)
-	kh_cb1 = VectorContinuousCallback(kh_condition, kh_affect!, 2)
-	kh_cb = CallbackSet(saving_cb, kh_cb1)
-end
-
-# ╔═╡ 24207276-e322-4a97-a32b-6377230722c8
-begin
-	kh_span = (15750, S3.finish)
-	initial_states = [Kₛ, 1.0]
-	kh_prob = ODEProblem(khmelnitsky_odefun!, initial_states, kh_span)
-	U;
-	kh_sol = solve(kh_prob, Rosenbrock23(), callback = kh_cb,
-		isoutofdomain = (u,p,t) -> u[1] ≤ 1e-2)
-
-	solK, Ψ = kh_sol[1,:], kh_sol[2,:]
+	initstates = [Kₛ, 1.0]
+	span = (4943.386367797852, segs[3].finish)
+	kh_sol = kh_solve(initstates, span)
+	solK = kh_sol[1,:]
+	Ψ = kh_sol[2,:]
+	@show kh_sol.t[end]
 end
 
 # ╔═╡ 1acab50f-91fe-4c8a-a7be-c5a34b45a81f
@@ -291,33 +294,40 @@ begin
 	plot!(twinx(), kh_sol.t, solK)
 end
 
-# ╔═╡ da815f6f-fe07-4808-b82a-d85fc02f03e4
+# ╔═╡ b4194b03-d200-4395-bbc7-936b475983b2
 plot(kh_sol.t, Ψ)
 
-# ╔═╡ b4194b03-d200-4395-bbc7-936b475983b2
+# ╔═╡ e5065f63-49ad-45ac-8161-c9da1091a950
 kh_sol.t[end]
 
+# ╔═╡ a2bf3e18-a114-4198-8005-478cff581007
+kh_sol.retcode
+
 # ╔═╡ Cell order:
-# ╠═7ad7cae2-dee3-463b-a5c7-8754b3f15d19
-# ╠═f9b24012-cc97-11ed-3abe-736fa4e439e9
-# ╠═28c11473-c285-49bd-92ed-ece57bdd15f1
+# ╟─7ad7cae2-dee3-463b-a5c7-8754b3f15d19
+# ╟─f9b24012-cc97-11ed-3abe-736fa4e439e9
+# ╟─28c11473-c285-49bd-92ed-ece57bdd15f1
 # ╠═f7f2edd4-357b-4fcd-9eec-3c9c1f854579
-# ╠═1a18361a-819f-4136-9f29-01bb21e470b7
+# ╟─1a18361a-819f-4136-9f29-01bb21e470b7
 # ╠═7a847255-ee9a-4336-806a-18ad5893f408
 # ╟─2bea567f-d959-490d-b360-fd14989cb462
 # ╠═a5da8052-70a6-49b9-bb5a-37aa60ae0dfe
+# ╠═6e760fe2-a030-4e34-80af-c7edd35f2bc2
 # ╟─81a21399-759e-46d8-bfc7-bbd1105d69c8
 # ╟─fedce6c9-d6ad-45df-9fbc-917a7df55122
 # ╟─b05d5976-32f0-44a8-acc5-89d7cb06d00f
 # ╟─a1ef92ac-f6d9-4620-83d8-95e55935d2e7
-# ╠═1ec8aaea-d0f7-4380-824c-d4d29a4dec76
-# ╠═6e42ba06-85cf-4edf-8d05-d94bb24d50ff
+# ╠═ac219b32-ee86-4f9c-87fb-9b42ca8b782f
+# ╟─6e42ba06-85cf-4edf-8d05-d94bb24d50ff
 # ╠═fffd0d3b-4234-40ab-9c7a-4e9b3c470f51
-# ╟─7620ecaa-6a14-46c1-972e-b9c27c480b1f
+# ╠═7620ecaa-6a14-46c1-972e-b9c27c480b1f
 # ╠═1eec1a0b-7f55-4891-82a3-05a75e625f0b
 # ╠═ff997eca-3ce9-4dc0-9c2e-f1d6fc34b798
-# ╠═1e1c6dac-163a-4c90-a264-8a6d08f48b5b
+# ╟─1e1c6dac-163a-4c90-a264-8a6d08f48b5b
 # ╠═24207276-e322-4a97-a32b-6377230722c8
+# ╠═05b2638f-1f6d-4952-aae3-6823d1273ace
+# ╠═5bd25d6d-d09f-4a56-9a9e-110760922143
 # ╠═1acab50f-91fe-4c8a-a7be-c5a34b45a81f
-# ╠═da815f6f-fe07-4808-b82a-d85fc02f03e4
 # ╠═b4194b03-d200-4395-bbc7-936b475983b2
+# ╠═e5065f63-49ad-45ac-8161-c9da1091a950
+# ╠═a2bf3e18-a114-4198-8005-478cff581007

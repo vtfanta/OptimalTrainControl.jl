@@ -115,8 +115,8 @@ function local_energy(u0, x0, p0, seg2)
     J = integrate(x, E.(myresistance, V, v) .- E(myresistance, V, V))
 end
 
-trackX = [0,1e3,1.8e3,1.9e3,3.1e3,4e3]
-trackY = getys([0,-0.03,0,0.03,0], trackX)
+trackX = [-1e3,-0.8e3,-0.2e3,0,1e3,1.8e3,1.9e3,3.1e3,4.2e3,4.6e3,5e3]
+trackY = getys([0,0.03,0,0,-0.03,0,0.03,0,-0.04,0], trackX)
 
 steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
 
@@ -127,12 +127,35 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 @show segs
 ρ = 0
 
-startingmode = :MaxP
-targetseg = segs[4]
+startingmode = :Coast
+targetseg = segs[3]
 
 xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[2].start, segs[2].finish-1))
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3)
-plot!(twinx(), steephilltrack; alpha = 0.5)
+sol1 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
+plot(sol1.t, sol1[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol1[3,:]], lw = 3, label = false,
+    ylabel = "Speed (m/s)")
+
+startingmode = :MaxP
+targetseg = segs[5]
+
+xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[3].start, segs[3].finish-1))
+p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
+sol2 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
+plot!(sol2.t, sol2[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol2[3,:]], lw = 3, label = false)
+
+startingmode = :MaxP
+targetseg = segs[6]
+
+xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[5].start, segs[5].finish-1))
+p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
+sol3 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
+plot!(sol3.t, sol3[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol3[3,:]], lw = 3, label = false)
+
+plot!(twinx(), steephilltrack; alpha = 0.5, size = (1600/2,900/2))
+
+plot!([sol1.t[end],sol2.t[1]],[V,V]; color = :blue, lw = 3, label = false)
+plot!([sol2.t[end],sol3.t[1]],[V,V]; color = :blue, lw = 3, label = false)

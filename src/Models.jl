@@ -28,6 +28,7 @@ mutable struct Segment
 end
 Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
 Base.show(io::IO, s::Segment) = show(io,"[$(s.start)..$(s.mode)..$(s.finish)]")
+Base.broadcastable(s::Segment) = Ref(s)
 
 function getmildsegments(track, V, res, umax, ρ = 0)
 	midpoints = [(track.waypoints[k, :Distance] + track.waypoints[k + 1, :Distance]) / 2 for k ∈ 1:nrow(track.waypoints) - 1]
@@ -66,6 +67,7 @@ mutable struct ModelParams
     ρ
     currentmode
 end
+Base.broadcastable(p::ModelParams) = Ref(p)
 
 mutable struct OptimalScenario <: Scenario
     model::Model

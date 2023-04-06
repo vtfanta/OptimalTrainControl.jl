@@ -82,7 +82,7 @@ function try_link(x0, seg2, initmode)
     η = sol[3,:]
     x = sol.t
 
-    @show x[end]
+    # @show x[end]
 
     if x[end] ≈ seg2.finish
         sign(η[end]) * Inf
@@ -115,6 +115,39 @@ function local_energy(u0, x0, p0, seg2)
     J = integrate(x, E.(myresistance, V, v) .- E(myresistance, V, V))
 end
 
+function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
+    if seg1.finish > seg2.start
+        error("Segment 1 has to precede segment 2.")
+    end
+
+    @info "Linking $seg1 \t+\t $seg2"
+
+    domain = (seg1.start, seg1.finish - 1)
+
+    nudge = getgradientacceleration(track, seg1.finish + 1) < 0 ? :MaxP : :Coast
+
+    valleft = try_link(domain[1], seg2, nudge)
+    valright = try_link(domain[2], seg2, nudge)
+
+    if sign(valleft) == sign(valright)
+        return nothing
+    end
+
+    xopt = find_zero(x -> try_link(x, seg2, nudge), domain)
+
+    p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
+
+    if seg1.mode == :HoldP
+        u0 = [0.0, V, 0.0]
+    elseif seg1.mode == :HoldR
+        W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
+        u0 = [0.0, W, ρ - 1.0]
+    end
+
+    sol = solve_regular!(u0, (xopt, seg2.finish), p, seg2)
+end
+
 trackX = [-1e3,-0.8e3,-0.2e3,0,1e3,1.8e3,1.9e3,3.1e3,4.2e3,4.6e3,5e3]
 trackY = getys([0,0.03,0,0,-0.03,0,0.03,0,-0.04,0], trackX)
 
@@ -127,35 +160,17 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 @show segs
 ρ = 0
 
-startingmode = :Coast
-targetseg = segs[3]
+sol1 = link(segs[2], segs[3], steephilltrack, mycontrol, myresistance, ρ, V)
+display(plot(sol1.t, sol1[2,:]; color = [e > 0 ? :green : :grey for e in sol1[3,:]], lw = 3, label = false,
+    ylabel = "Speed (m/s)"))
+display(plot!(twinx(), steephilltrack; alpha = 0.5, size = (1600/2,900/2)))
 
-xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[2].start, segs[2].finish-1))
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
-    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-sol1 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol1.t, sol1[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol1[3,:]], lw = 3, label = false,
-    ylabel = "Speed (m/s)")
+sol2 = link(segs[3], segs[5], steephilltrack, mycontrol, myresistance, ρ, V)
+display(plot!(sol2.t, sol2[2,:]; color = [e > 0 ? :green : :grey for e in sol2[3,:]], lw = 3, label = false))
 
-startingmode = :MaxP
-targetseg = segs[5]
+sol3 = link(segs[5], segs[6], steephilltrack, mycontrol, myresistance, ρ, V)
+display(plot!(sol3.t, sol3[2,:]; color = [e > 0 ? :green : :grey for e in sol3[3,:]], lw = 3, label = false))
 
-xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[3].start, segs[3].finish-1))
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
-    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-sol2 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot!(sol2.t, sol2[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol2[3,:]], lw = 3, label = false)
 
-startingmode = :MaxP
-targetseg = segs[6]
-
-xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[5].start, segs[5].finish-1))
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
-    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-sol3 = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot!(sol3.t, sol3[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol3[3,:]], lw = 3, label = false)
-
-plot!(twinx(), steephilltrack; alpha = 0.5, size = (1600/2,900/2))
-
-plot!([sol1.t[end],sol2.t[1]],[V,V]; color = :blue, lw = 3, label = false)
-plot!([sol2.t[end],sol3.t[1]],[V,V]; color = :blue, lw = 3, label = false)
+# plot!([sol1.t[end],sol2.t[1]],[V,V]; color = :blue, lw = 3, label = false)
+# plot!([sol2.t[end],sol3.t[1]],[V,V]; color = :blue, lw = 3, label = false)

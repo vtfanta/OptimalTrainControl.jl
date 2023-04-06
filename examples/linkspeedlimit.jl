@@ -141,6 +141,6 @@ xopt = 1367.20994119338
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3)
-plot!(twinx(), steephilltrack; alpha = 0.5)
+plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
+plot!(twinx(), steephilltrack; alpha = 0.5, label = false)
 hline!([speedlimit])

@@ -32,7 +32,7 @@ function solve_regular!(u0, span, p0, seg2)
     condition_lowspeed(u, t, int) = u[2] - 1e-2
     affect_lowspeed!(int) = terminate!(int)
     function condition_modeswitch(out, u, t, int)
-        out[1] = u[3] - 1e-5
+        out[1] = u[3]
         out[2] = u[3] - (int.p.ρ - 1)
     end
     function affect_modeswitch!(int, idx)
@@ -75,13 +75,25 @@ end
 function try_link(x0, seg2, initmode)
     p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
-    sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+
+    # Link first segment
+    if isinf(seg2.start)
+        sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+        if sol.retcode == ReturnCode.Terminated
+            display(plot(sol.t, sol[2,:]))
+            return -Inf
+        elseif sol.retcode == ReturnCode.Success
+            display(plot(sol.t, sol[2,:]))
+            return sol[2,end] - vᵢ
+        end
+    end
 
     v = sol[2,:]
     η = sol[3,:]
     x = sol.t
 
     # @show x[end]
+
 
     if x[end] ≈ seg2.finish
         sign(η[end])*Inf
@@ -120,15 +132,15 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 3/x)
 ρ = 0
 
 startingmode = :MaxP
-# xopt = find_zero(x -> try_link(x, segs[4], startingmode), (segs[2].start, segs[2].finish-1))
 
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 
 vᵢ = 3.0
-ηᵢ = (E(myresistance, V, vᵢ) - E(myresistance, V, V)) / (p0.u([0.0, vᵢ, nothing], p0, nothing) - resistance(myresistance, vᵢ))
 
-sol = solve_regular!([0.0, vᵢ, ηᵢ], (segs[2].start, segs[2].finish), p0, segs[2])
+xopt = find_zero(x -> try_link(x, segs[1], startingmode), (segs[2].start, segs[2].finish);
+    xatol = 1e-3)
+sol = solve_regular!([0.0, V, 0.0], (xopt, segs[2].start), p0, segs[1])
 plot(sol.t, sol[2,:])
 plot!(twinx(), steephilltrack; alpha = 0.5)
 

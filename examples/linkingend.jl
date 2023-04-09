@@ -75,6 +75,19 @@ end
 function try_link(x0, seg2, initmode)
     p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
+
+    # Link final segment
+    if isinf(seg2.finish)
+        sol = solve_regular!([0.0, V, 0.0], (x0, seg2.start), p0, seg2)
+        if sol.retcode == ReturnCode.Terminated
+            display(plot(sol.t, sol[2,:]))
+            return -Inf
+        elseif sol.retcode == ReturnCode.Success
+            display(plot(sol.t, sol[2,:]))
+            return sol[2,end] - vf
+        end        
+    end
+
     sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
     v = sol[2,:]
@@ -105,6 +118,16 @@ function getys(γs, X)
     return ret
 end
 
+function phasecolor(η, ρ)
+    if η > 0
+        return :green
+    elseif ρ - 1 < η < 0
+        return :grey
+    else
+        return :red
+    end
+end
+
 trackX = [0.0,3e3,4e3, 4.3e3, 5.5e3, 10e3]
 trackY = [0.0, 0.0, -10.0, -10.0,10.0,10.0]
 
@@ -125,9 +148,10 @@ p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]),
 
 vf = 1.0
 
-xopt = find_zero(x -> try_link(x, segs[4], startingmode), (segs[2].start, segs[2].finish-1))
-sol = solve_regular!([0.0, V, 0.0], (xopt,segs[4].finish), p0, segs[4])
-plot(sol.t, sol[2,:])
+xopt = find_zero(x -> try_link(x, segs[5], startingmode), (segs[2].start, segs[4].finish);
+    xatol = 1e-3)
+sol = solve_regular!([0.0, V, 0.0], (xopt,segs[5].start), p0, segs[5])
+plot(sol.t, sol[2,:]; color = phasecolor.(sol[3,:], ρ), lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5)
 
 # xs = collect(segs[2].start:10:segs[2].finish)

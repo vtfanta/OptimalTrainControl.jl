@@ -118,6 +118,15 @@ function getys(γs, X)
     end
     return ret
 end
+function phasecolor(η, ρ)
+    if η > 0
+        return :green
+    elseif ρ - 1 < η < 0
+        return :grey
+    else
+        return :red
+    end
+end
 
 trackX = [0.0,3e3,4e3, 4.3e3, 5.5e3, 10e3]
 trackY = [0.0, 0.0, -10.0, -10.0,10.0,10.0]
@@ -141,7 +150,7 @@ vᵢ = 3.0
 xopt = find_zero(x -> try_link(x, segs[1], startingmode), (segs[2].start, segs[2].finish);
     xatol = 1e-3)
 sol = solve_regular!([0.0, V, 0.0], (xopt, segs[2].start), p0, segs[1])
-plot(sol.t, sol[2,:])
+plot(sol.t, sol[2,:]; color = phasecolor.(sol[3,:], ρ), lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5)
 
 # xs = collect(segs[2].start:10:segs[2].finish)

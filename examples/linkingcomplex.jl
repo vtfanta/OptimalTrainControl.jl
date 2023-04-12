@@ -1,4 +1,5 @@
 using DifferentialEquations
+using DiffEqCallbacks
 import NumericalIntegration: integrate
 using Plots
 using RailDynamics
@@ -39,6 +40,7 @@ function solve_regular!(u0, span, p0, seg2)
     function affect_modeswitch!(int, idx)
         if idx == 1 && int.t ≥ seg2.start
             terminate!(int)
+            return
         end
 
         if idx == 1 && int.p.currentmode == :Coast
@@ -46,11 +48,12 @@ function solve_regular!(u0, span, p0, seg2)
         elseif idx == 2 && int.p.currentmode == :MaxB
             int.p.currentmode = :Coast
         end
-        # @show int.t, int.p.currentmode
+        push!(switching_points, (int.t, int.p.currentmode))
     end
     function affect_neg_modeswitch!(int, idx)
         if idx == 1 && int.t ≥ seg2.start
             terminate!(int)
+            return
         end
 
         if idx == 1 && int.p.currentmode == :MaxP
@@ -58,33 +61,48 @@ function solve_regular!(u0, span, p0, seg2)
         elseif idx == 2 && int.p.currentmode == :Coast
             int.p.currentmode = :MaxB
         end
-        # @show int.t, int.p.currentmode
+        push!(switching_points, (int.t, int.p.currentmode))
     end
+
+    switching_points = []
 
     cb_modeswitch = VectorContinuousCallback(condition_modeswitch, affect_modeswitch!, affect_neg_modeswitch!, 2)
     cb_lowspeed = ContinuousCallback(condition_lowspeed, affect_lowspeed!)
 
     tstops = [r[:Distance] for r in eachrow(steephilltrack.waypoints)]
-    
+
     cbS = CallbackSet(cb_modeswitch, cb_lowspeed)
     
     prob = ODEProblem(odefun!, u0, span, p0)
-    solve(prob;alg_hints = [:stiff], tstops, callback = cbS, d_discontinuities = tstops, 
+    sol = solve(prob;alg_hints = [:stiff], tstops, callback = cbS, d_discontinuities = tstops, 
         dtmax = 10)
+    return sol, switching_points
 end
 
-function try_link(x0, seg2, initmode, accross = false)
+function try_link(x0, seg2, initmode, across = false)
     p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 
     # Link first segment to final segment
-    # if accross
-
-    # end
+    if across
+        # sol, _ = solve_regular!([0.0, vᵢ, x0], (start(steephilltrack), finish(steephilltrack)), p0, seg2)
+        # if sol.retcode == ReturnCode.Terminated
+        #     return -Inf
+        # else
+        #     return sol[2,end] - vf
+        # end
+        sol, _ = solve_regular!([0.0, vf, x0], (finish(steephilltrack), start(steephilltrack)), p0, seg2)
+        # display(plot(sol.t,sol[2,:]))
+        if sol.retcode == ReturnCode.Terminated
+            return -Inf
+        else
+            return sol[2,end] - vᵢ
+        end
+    end
 
     # Link first segment
     if isinf(seg2.start)
-        sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+        sol, _ = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
         if sol.retcode == ReturnCode.Terminated
             # display(plot(sol.t, sol[2,:]))
             return -Inf
@@ -96,7 +114,7 @@ function try_link(x0, seg2, initmode, accross = false)
 
     # Link final segment
     if isinf(seg2.finish)
-        sol = solve_regular!([0.0, V, 0.0], (x0, seg2.start), p0, seg2)
+        sol, _ = solve_regular!([0.0, V, 0.0], (x0, seg2.start), p0, seg2)
         if sol.retcode == ReturnCode.Terminated
             # display(plot(sol.t, sol[2,:]))
             return -Inf
@@ -106,7 +124,7 @@ function try_link(x0, seg2, initmode, accross = false)
         end        
     end
 
-    sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+    sol, _ = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
     v = sol[2,:]
     η = sol[3,:]
@@ -179,7 +197,11 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
             u0 = [0.0, W, ρ - 1.0]
         end
 
-        return solve_regular!(u0, (xopt, seg2.finish), p, seg2)
+        sol, points = solve_regular!(u0, (xopt, seg2.finish), p, seg2)
+        pushfirst!(points, (xopt, nudge))
+        push!(points, (sol.t[end],seg2.mode))
+        @show points
+        return sol
 
     elseif isinf(seg1.start) && !isinf(seg2.finish) # link initial segment to inner segment
         if seg1.finish > seg2.start
@@ -212,7 +234,11 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
             u0 = [0.0, W, ρ - 1.0]
         end
 
-        return solve_regular!(u0, (xopt, seg2.start), p, seg1)
+        sol, points = solve_regular!(u0, (xopt, seg2.start), p, seg1)
+        pushfirst!(points, (seg2.start, nudge))
+        push!(points, (xopt, seg2.mode))
+        @show points
+        return sol
 
     elseif isinf(seg2.finish) && !isinf(seg1.start) # link final segment to inner segment
         if seg2.start < seg1.finish
@@ -245,10 +271,38 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
             u0 = [0.0, W, ρ - 1.0]
         end
 
-        return solve_regular!(u0, (xopt, seg2.start), p, seg2)
+        sol, points = solve_regular!(u0, (xopt, seg2.start), p, seg2)
+        pushfirst!(points, (xopt, nudge))
+        push!(points, (sol.t[end], nothing))
+        @show points
+        return sol
 
     elseif isinf(seg1.start) && isinf(seg2.finish) # link initial to final segment
+        nudge = :MaxB
+        η = find_zero(η0 -> try_link(η0, seg2, nudge, true), (-1-1e-5,-100))
+        p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
+        sol, points = solve_regular!([0.0, vf, η], (finish(track), start(track)), p, seg2)
 
+        reverse!(points)
+        correct_points = []
+        for point in points
+            if point[2] == :MaxP
+                push!(correct_points, (point[1], :Coast))
+            elseif point[2] == :Coast
+                if sol(point[1]+1)[3] < 0
+                    push!(correct_points, (point[1], :MaxB))
+                else
+                    push!(correct_points, (point[1], :MaxP))
+                end
+            elseif point[2] == :MaxB
+                push!(correct_points, (point[1], :Coast))
+            end
+        end
+        pushfirst!(correct_points, (start(track), :MaxP))
+        push!(correct_points, (finish(track), nothing))
+        @show correct_points
+        return sol
     end
 end
 
@@ -269,9 +323,9 @@ steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
 
 myresistance = DavisResistance(1e-2,0,1.5e-5)
 
-V = 25.0
+V = 24.0
 vᵢ = 3.0
-vf = 2.0
+vf = 1.0
 segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 @show segs
 ρ = 0
@@ -290,13 +344,5 @@ display(plot!(sol2.t, sol2[2,:]; color = phasecolor.(sol2[3,:], ρ), lw = 3, lab
 sol3 = link(segs[5], segs[6], steephilltrack, mycontrol, myresistance, ρ, V)
 display(plot!(sol3.t, sol3[2,:]; color = phasecolor.(sol3[3,:], ρ), lw = 3, label = false))
 
-sol4 = link(segs[2], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
+sol4 = link(segs[1], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
 display(plot!(sol4.t, sol4[2,:]; color = phasecolor.(sol4[3,:], ρ), lw = 3, label = false))
-
-# begin
-# p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
-#     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, :MaxP)
-# sol = solve_regular!([0.0, vᵢ, 0.674740], (start(steephilltrack), finish(steephilltrack)), p0, segs[7])
-# @show sol.t[end]
-# plot(sol.t,sol[2,:])
-# end

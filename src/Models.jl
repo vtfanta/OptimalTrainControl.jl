@@ -27,7 +27,13 @@ mutable struct Segment
     exit
 end
 Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
-Base.show(io::IO, s::Segment) = show(io,"[$(s.start)..$(s.mode)..$(s.finish)]")
+function Base.show(io::IO, s::Segment) 
+    show(io, s.start)
+    print(io, " ~ ")
+    printstyled(io, s.mode; color = s.mode == :HoldP ? :blue : :purple)
+    print(io, " ~ ")
+    show(io, s.finish)
+end
 Base.broadcastable(s::Segment) = Ref(s)
 
 function getmildsegments(track, V, res, umax, ρ = 0)

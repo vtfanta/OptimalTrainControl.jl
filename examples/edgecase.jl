@@ -10,23 +10,23 @@ function odefun!(du, u, p, x)
     t, v, η = u
 
     du[1] = inv(v)
-    du[2] = (p.u(u, p.currentmode, x) - p.r(u, p, x) + 
+    du[2] = (p.u(u, p, x) - p.r(u, p, x) + 
         p.g(u, p, x)) * inv(v)
 
     if p.currentmode != :MaxB
-        du[3] = (ψ(myresistance, v) - v^2 * derivative(v -> p.u([t, v, η], p.currentmode, x), v)) * η / v^3 + (ψ(myresistance,v) - ψ(myresistance,V))/v^3
+        du[3] = (ψ(myresistance, v) - v^2 * derivative(v -> p.u([t, v, η], p, x), v)) * η / v^3 + (ψ(myresistance,v) - ψ(myresistance,V))/v^3
     else
-        du[3] = (ψ(myresistance, v) - v^2 * derivative(v -> p.u([t, v, η], p.currentmode, x), v)) * η / v^3 + (ψ(myresistance,v) - ψ(myresistance,V))/v^3 - (1 - p.ρ) * derivative(v -> p.u([t, v, η], p.currentmode, x), v) / v
+        du[3] = (ψ(myresistance, v) - v^2 * derivative(v -> p.u([t, v, η], p, x), v)) * η / v^3 + (ψ(myresistance,v) - ψ(myresistance,V))/v^3 - (1 - p.ρ) * derivative(v -> p.u([t, v, η], p, x), v) / v
     end
 end
 
 function mycontrol(u, p, x)
-    if p == :MaxP
+    if p.currentmode == :MaxP
         # 1. / max(u[2],5)
         0.125
-    elseif p == :Coast
+    elseif p.currentmode == :Coast
         0
-    elseif p == :MaxB
+    elseif p.currentmode == :MaxB
         # - 3. / u[2]
         -0.25
     end
@@ -89,7 +89,7 @@ function solve_regular!(u0, span, p0, seg2, shouldswitch = true)
 end
 
 function try_link(x0, seg2, initmode, across = false, vinit = V)
-    p0 = ModelParams((u,p,x) -> mycontrol(u,p,x), (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 
     # Link first segment to final segment
@@ -137,13 +137,13 @@ function try_link(x0, seg2, initmode, across = false, vinit = V)
     # @show x[end]
 
     if x[end] ≈ seg2.finish
-        # display(plot(sol.t, sol[2,:]))
+        display(plot(sol.t, sol[3,:]))
         sign(η[end]) * Inf
     elseif v[end] ≤ 0.1
-        # display(plot(sol.t, sol[2,:]))
+        display(plot(sol.t, sol[3,1:end]))
         -Inf
     else
-        # display(plot(sol.t, sol[2,:]))
+        display(plot(sol.t, sol[2,:]))
         v[end] - V
     end
 end
@@ -203,7 +203,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
         # @show points
 
         if sol[2,end] ≤ 0.1
-            # display(plot(sol.t, sol[2,:]))
+            display(plot(sol.t, sol[2,:]))
             return nothing
         else
             return sol, points
@@ -321,7 +321,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
         retsol = DiffEqBase.build_solution(ODEProblem(odefun!, [0.0, vᵢ, 1.0], (start(track), finish(track)), powerp), AutoTsit5(Rosenbrock23()), totalsolt, totalsolu, retcode = ReturnCode.Success)
         
         retpoints = vcat((start(track), :MaxP), (switchingpoint, :Coast), pts)
-        # display(plot(retsol.t, retsol.u[2,:]))
+        display(plot(retsol.t, retsol.u[2,:]))
 
         return nothing
         return retsol, retpoints
@@ -431,7 +431,7 @@ steephilltrack = HillyTrack(trackX, trackY)
 
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 
-V = 29
+V = 15
 # V = sqrt(2 * 63.27)
 vᵢ = sqrt(2 * 2)
 vf = vᵢ
@@ -440,25 +440,11 @@ vf = vᵢ
 segs = getmildsegments(steephilltrack, V, myresistance, x -> 0.125)
 
 begin
-# sol0, pts = link(segs[1], segs[end], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot(sol0.t, sol0[2,:]; color = modecolor(sol0.t, pts), lw = 3, label = false,
-#     ylabel = "Speed (m/s)"))
+sol0, pts = link(segs[2], segs[4], steephilltrack, mycontrol, myresistance, ρ, V)
+display(plot(sol0.t, sol0[2,:]; color = modecolor(sol0.t, pts), lw = 3, label = false,
+    ylabel = "Speed (m/s)"))
 # display(plot!(twinx(), steephilltrack; alpha = 0.5, size = (1600/2,900/2)))
 end
-# sol1, _ = link(segs[2], segs[4], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol1.t, sol1[2,:]; color = phasecolor.(sol1[3,:], ρ), lw = 3, label = false))
-
-# sol2, _ = link(segs[4], segs[5], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol2.t, sol2[2,:]; color = phasecolor.(sol2[3,:], ρ), lw = 3, label = false))
-
-# sol3, _ = link(segs[5], segs[6], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol3.t, sol3[2,:]; color = phasecolor.(sol3[3,:], ρ), lw = 3, label = false))
-
-# sol4, _ = link(segs[2], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol4.t, sol4[2,:]; color = phasecolor.(sol4[3,:], ρ), lw = 3, label = false))
-
-# sol5, _ = link(segs[1], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol5.t, sol5[2,:]; color = phasecolor.(sol5[3,:], ρ), lw = 3, label = false))
 
 function findchain(segs, track, control, res, ρ, V)
     N = length(segs)
@@ -469,28 +455,27 @@ function findchain(segs, track, control, res, ρ, V)
     l = link(segs[1], segs[2], track, control, res, ρ, V)
     if !isnothing(l)
         linkages[2] = Set(1)
-        union!(chains, [l[2]])
+        union!(chains, l[2])
     end
 
     for k = 2:N-1
         z = k
         while z > 0
-            # @show z, k+1
+            @show z, k+1
             l = link(segs[z], segs[k+1], track, control, res, ρ, V)
             if isnothing(l)
-                # @show "NOPE"
+                @show "NOPE"
                 z -= 1
             else
-                # @show "Link found"
                 if z == 1 # Need to add new chain when linking to first segment
                     union!(chains, [l[2]])
                     linkages[k+1] = Set(z)
                 end
                 for c in chains
-                    # @show chains
+                    @show chains
                     if segs[z].start ≤ c[end][1] ≤ segs[z].finish && c[end][1] < l[2][1][1]
                         newchain = vcat(c, l[2])
-                        union!(chains, [newchain])
+                        union!(chains, newchain)
                         if (k+1) in keys(linkages)
                             union!(linkages[k+1], get(linkages, z, Set()))
                             union!(linkages[k+1], z)
@@ -509,149 +494,6 @@ function findchain(segs, track, control, res, ρ, V)
             end
         end
     end
-    for chain in chains
-        if chain[1][1] == start(track) && chain[end][1] == finish(track)
-            return chain
-        end
-    end
-    print(chains)
-    error("Chain from start to finish of the track not found.")
+    @show linkages
+    @show chains
 end
-
-# N = length(segs)
-# links = Matrix{Any}(nothing, N, N)
-# linkages = Dict()
-
-# links[1, 2] = link(segs[1], segs[2], steephilltrack, mycontrol, myresistance, ρ, V)
-# if !isnothing(links[1,2])
-#     linkages[segs[2]] = [segs[1]]
-# end
-
-# for k = 2:N-1
-#     z = k
-#     while !isnothing(z) && z > 0
-#         # @show k+1, z
-#         candidatelink = link(segs[z], segs[k+1], steephilltrack, mycontrol, myresistance, ρ, V)
-#         if isnothing(candidatelink)
-#             # no link possible
-#             z -= 1
-#         else # link found
-#             if k + 1 == N && z == 1 && abs(candidatelink[1].u[2,end] - vᵢ) > 3
-#                 break
-#             end
-#             links[z, k+1] = candidatelink
-#             if isnothing(get(linkages, segs[k+1], nothing))
-#                 linkages[segs[k+1]] = [segs[z]]
-#             elseif !in(segs[z], linkages[segs[k+1]])
-#                 push!(linkages[segs[k+1]], segs[z])
-#             end
-#             if z == 1
-#                 break
-#             end
-#             for i in z-1:1
-#                 if isnothing(links[i,z])
-#                     continue
-#                 end
-#                 if links[i,z][2][end][1] < links[z,k+1][2][1][1] && 
-#                     !in(segs[i], linkages[segs[k+1]])
-#                     push!(linkages[segs[k+1]], segs[i])
-#                 end
-#             end
-#             z = findlast([!in(seg, linkages[segs[k+1]]) for seg in segs[1:z-1]])
-#         end
-#     end
-# end
-
-# foreach(x -> isnothing(x) ? nothing : println(x[2]), links)
-
-# chain = []
-# k = N
-# cnt = 1 # safeguard
-# while cnt < 100
-#     for (idx, l) in enumerate(links[:,k])
-#         if !isnothing(l)
-#             if isempty(chain)
-#                 push!(chain, l)
-#                 global k = idx
-#             elseif l[2][end][1] < chain[end][2][1][1]
-#                 if l[1][2,end] ≤ 0.5
-#                     continue
-#                 end
-#                 push!(chain, l)
-#                 global k = idx
-#                 break
-#             end
-#         end
-#     end
-#     if k == 1
-#         break
-#     end
-#     global cnt += 1
-# end
-# reverse!(chain)
-
-function calculatetime(chain)
-    T_regular = sum([abs(c[1][1,end]) for c in chain])
-    if length(chain) > 1
-        T_singular = sum([chain[j][2][end][2] == :HoldP ? (chain[j+1][2][1][1] - chain[j][2][end][1]) / V : nothing for j = 1:length(chain)-1]) # TODO implement situation for :HoldR and W
-    else
-        T_singular = 0
-    end
-    T_regular + T_singular
-end
-
-function chain2sol(chain, track, control, res)
-    @assert start(track) == chain[1][1]
-    @assert finish(track) == chain[end][1]
-
-    # parameter p serves as the current mode indicator
-    # set p to the initial mode
-    chainidx = 1
-    p = chain[chainidx][2]
-
-    switchingpoints = [c[1] for c in chain]
-
-    function small_odefun!(du, u, p, x)
-        t, v = u
-        du[1] = inv(v)
-        du[2] = (control(u, p, x) - resistance(res, u[2] + getgradientacceleration(track, x))) * 
-            inv(v)
-    end
-
-    condition(u, x, int) = x ∈ switchingpoints
-    function affect!(int)
-        chainidx += 1
-        p = chain[chainidx][2]
-    end
-    cb = DiscreteCallback(condition, affect!)
-
-    trackchanges = [r[:Distance] for r in eachrow(track.waypoints)]
-    tstops = sort(vcat(switchingpoints, trackchanges))
-
-    prob = ODEProblem(small_odefun!, [0.0, vᵢ], (start(track), finish(track)), p)
-
-    sol = solve(prob; alg_hints = [:stiff], tstops, d_discontinuities = tstops, callback = cb)
-
-end
-
-chain = findchain(segs, steephilltrack, mycontrol, myresistance, ρ, V)
-print(chain)
-
-# p = plot()
-# for (idx, c) in enumerate(chain)
-#     plot!(p, c[1].t, c[1][2,:]; color = modecolor(c[1].t, c[2]), lw = 3, label = false)
-#     if idx != length(chain)
-#         plot!(p, [c[1].t[end], chain[idx+1][1].t[1]], c[2][end][2] == :HoldP ? [V, V] : [W, W];
-#             color = :blue, lw = 3, label = false) # TODO implement situation for :HoldR
-#     end
-# end
-
-# @show calculatetime(chain)
-# display(p)
-# plot!(twinx(), steephilltrack; alpha = 0.5)
-# begin
-# firstsegment = 1
-# endsegment = 2
-# plot(links[firstsegment,endsegment][1].t, links[firstsegment,endsegment][1][2,:])
-# links[firstsegment, endsegment][2]
-# end

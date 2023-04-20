@@ -48,7 +48,8 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 	
 	ret = []
 	for (i, g) in enumerate(gs)
-		if g ≤ resistance(res, V) ≤ umax(V) + g
+		# if g ≤ resistance(res, V) ≤ umax(V) + g
+        if !(umax(V) - resistance(res, V) + g < 0) && !(-resistance(res, V) + g > 0)
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
@@ -62,7 +63,7 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 			end
 		end
 	end 
-	insert!(ret, 1, Segment(-Inf, starts[1], :HoldP))
+	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP))
 	push!(ret, Segment(ends[end], Inf, :HoldP))
 end
 

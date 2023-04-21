@@ -431,8 +431,8 @@ steephilltrack = HillyTrack(trackX, trackY)
 
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 
-V = 29
-# V = sqrt(2 * 63.27)
+# V = 29
+V = sqrt(2 * 63.27)
 vᵢ = sqrt(2 * 2)
 vf = vᵢ
 ρ = 0
@@ -461,8 +461,16 @@ end
 # display(plot!(sol5.t, sol5[2,:]; color = phasecolor.(sol5[3,:], ρ), lw = 3, label = false))
 
 function findchain(segs, track, control, res, ρ, V)
+    function isinseg(x, seg)
+        return seg.start ≤ x ≤ seg.finish
+    end
+
+    if ρ > 0
+        W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
+    end
+
     N = length(segs)
-    links = Matrix{Any}(nothing, N, N)
+    sols = Matrix{Any}(nothing, N, N)
     linkages = Dict()
     chains = Set()
     
@@ -470,6 +478,7 @@ function findchain(segs, track, control, res, ρ, V)
     if !isnothing(l)
         linkages[2] = Set(1)
         union!(chains, [l[2]])
+        sols[1,2] = l[1]
     end
 
     for k = 2:N-1
@@ -482,6 +491,7 @@ function findchain(segs, track, control, res, ρ, V)
                 z -= 1
             else
                 # @show "Link found"
+                sols[z,k+1] = l[1]
                 if z == 1 # Need to add new chain when linking to first segment
                     union!(chains, [l[2]])
                     linkages[k+1] = Set(z)
@@ -510,8 +520,44 @@ function findchain(segs, track, control, res, ρ, V)
         end
     end
     for chain in chains
-        if chain[1][1] == start(track) && chain[end][1] == finish(track)
-            return chain
+        if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
+            # Get indices of segments in the chain
+            segsequence = filter(!isnothing,[c[2] == :HoldP || c[2] == :HoldR ? findfirst(isinseg.(c[1], segs)) : nothing for c in chain[2:end-1]])
+            pushfirst!(segsequence, 1)
+            push!(segsequence, N)
+
+            # Build the complete solution
+            K = length(segsequence) # number of solution to combine
+            distances = [sols[segsequence[idx], segsequence[idx+1]].t for idx=1:K-1]
+            times = [sols[segsequence[idx], segsequence[idx+1]][1,:] for idx=1:K-1]
+            speeds = [sols[segsequence[idx], segsequence[idx+1]][2,:] for idx=1:K-1]
+            ηs = [sols[segsequence[idx], segsequence[idx+1]][3,:] for idx=1:K-1]
+            
+            totdistance = vcat(distances...)
+            tottime = times[1]
+            totspeed = speeds[1]
+            totη = ηs[1]
+
+            # @show length(distances), length(segsequence)
+            for i = 2:K-1
+                timeoffset = (distances[i][1] - distances[i-1][end]) / 
+                    (segs[i].mode == :HoldP ? V : W)
+                nexttime = times[i] .+ (tottime[end] + timeoffset)
+                nextspeed = speeds[i] 
+                nextη = ηs[i]
+
+                append!(tottime, nexttime)
+                append!(totspeed, nextspeed)
+                append!(totη, nextη)
+            end
+
+            # Construct the complete ODESolution
+            totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
+            prob = ODEProblem(odefun!, totu[1], (totdistance[1], totdistance[end]))
+            sol = DiffEqBase.build_solution(prob, Tsit5(), totdistance, totu, 
+                retcode = ReturnCode.Success)
+
+            return chain, sol
         end
     end
     print(chains)
@@ -621,7 +667,9 @@ function chain2sol(chain, track, control, res)
     condition(u, x, int) = x ∈ switchingpoints
     function affect!(int)
         chainidx += 1
-        p = chain[chainidx][2]
+        if !isnothing(chain[chainidx][2])
+            int.p = chain[chainidx][2]
+        end
     end
     cb = DiscreteCallback(condition, affect!)
 
@@ -634,8 +682,9 @@ function chain2sol(chain, track, control, res)
 
 end
 
-chain = findchain(segs, steephilltrack, mycontrol, myresistance, ρ, V)
+chain, sol = findchain(segs, steephilltrack, mycontrol, myresistance, ρ, V)
 print(chain)
+plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain), lw = 2)
 
 # p = plot()
 # for (idx, c) in enumerate(chain)

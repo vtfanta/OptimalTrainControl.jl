@@ -315,59 +315,22 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
         brakesol, pts = solve_regular!(u0, span, p, seg2)
         
-        totalsolu = hcat(powersol[:,powersol.t .< switchingpoint], brakesol[:,:])
-        totalsolt = vcat(powersol.t[powersol.t .< switchingpoint], brakesol.t)
+        totdistance = vcat(powersol.t[powersol.t .< switchingpoint], brakesol.t)
+        tottime = powersol[1,powersol.t .< switchingpoint]
+        totspeed = powersol[2,powersol.t .< switchingpoint]
+        totη = powersol[3,powersol.t .< switchingpoint]
+        append!(tottime, brakesol[1,:])
+        append!(totspeed, brakesol[2,:])
+        append!(totη, brakesol[3,:])
+        totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
 
-        retsol = DiffEqBase.build_solution(ODEProblem(odefun!, [0.0, vᵢ, 1.0], (start(track), finish(track)), powerp), AutoTsit5(Rosenbrock23()), totalsolt, totalsolu, retcode = ReturnCode.Success)
+        retsol = DiffEqBase.build_solution(ODEProblem(odefun!, [0.0, vᵢ, 1.0], (start(track), finish(track)), powerp), AutoTsit5(Rosenbrock23()), totdistance, totu, retcode = ReturnCode.Success)
         
         retpoints = vcat((start(track), :MaxP), (switchingpoint, :Coast), pts)
+        push!(retpoints, (finish(track), nothing))
         # display(plot(retsol.t, retsol.u[2,:]))
 
-        return nothing
         return retsol, retpoints
-        # nudge = :MaxB
-        # ηf = find_zero(η0 -> try_link(η0, seg2, nudge, true), (-1-1e-5,-100))
-        # p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
-        # (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
-        # sol, points = solve_regular!([0.0, vf, ηf], (finish(track), start(track)), p, seg2)
-
-        # reverse!(points)
-        # correct_points = []
-        # for point in points
-        #     if point[2] == :MaxP
-        #         push!(correct_points, (point[1], :Coast))
-        #     elseif point[2] == :Coast
-        #         if sol(point[1]+1)[3] < 0
-        #             push!(correct_points, (point[1], :MaxB))
-        #         else
-        #             push!(correct_points, (point[1], :MaxP))
-        #         end
-        #     elseif point[2] == :MaxB
-        #         push!(correct_points, (point[1], :Coast))
-        #     end
-        # end
-        # pushfirst!(correct_points, (start(track), :MaxP))
-        # push!(correct_points, (finish(track), nothing))
-
-        # initialnudge = (vᵢ < V) ? :MaxP : :Coast
-        # p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
-        # (_, _, x) -> getgradientacceleration(track, x), ρ, initialnudge)
-        # ηᵢ = (E(res, V, vᵢ) - E(res, V, V)) / (p.u([0.0, vᵢ, (initialnudge == :MaxP ? 1.0 : -0.5)], p, start(track)))
-
-        # initialprob = ODEProblem(odefun!, [0.0, vᵢ, ηᵢ], (start(track), finish(track)), p)
-        # # initialsol = solve()
-
-        # # meetingpoint = find_zeros(x -> sol(x)[2] - initialsol(x)[2], start(track), finish(track))[1]
-
-        # # display(plot(sol.t, sol[2,:]; color = phasecolor.(sol[3,:], ρ)))
-        # # display(plot(initialsol.t, initialsol[2,:]; color = phasecolor.(initialsol[3,:], ρ)))
-        # return sol, correct_points
-        # # @show correct_points
-        # if sol[2,end] ≤ 0.1
-        #     return nothing
-        # else
-        #     return sol, points
-        # end
     end
 end
 
@@ -431,34 +394,13 @@ steephilltrack = HillyTrack(trackX, trackY)
 
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 
-# V = 29
-V = sqrt(2 * 63.27)
+V = 140
+# V = sqrt(2 * 63.27)
 vᵢ = sqrt(2 * 2)
 vf = vᵢ
 ρ = 0
 
-segs = getmildsegments(steephilltrack, V, myresistance, x -> 0.125)
-
-begin
-# sol0, pts = link(segs[1], segs[end], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot(sol0.t, sol0[2,:]; color = modecolor(sol0.t, pts), lw = 3, label = false,
-#     ylabel = "Speed (m/s)"))
-# display(plot!(twinx(), steephilltrack; alpha = 0.5, size = (1600/2,900/2)))
-end
-# sol1, _ = link(segs[2], segs[4], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol1.t, sol1[2,:]; color = phasecolor.(sol1[3,:], ρ), lw = 3, label = false))
-
-# sol2, _ = link(segs[4], segs[5], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol2.t, sol2[2,:]; color = phasecolor.(sol2[3,:], ρ), lw = 3, label = false))
-
-# sol3, _ = link(segs[5], segs[6], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol3.t, sol3[2,:]; color = phasecolor.(sol3[3,:], ρ), lw = 3, label = false))
-
-# sol4, _ = link(segs[2], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol4.t, sol4[2,:]; color = phasecolor.(sol4[3,:], ρ), lw = 3, label = false))
-
-# sol5, _ = link(segs[1], segs[7], steephilltrack, mycontrol, myresistance, ρ, V)
-# display(plot!(sol5.t, sol5[2,:]; color = phasecolor.(sol5[3,:], ρ), lw = 3, label = false))
+segs = getmildsegments(steephilltrack, V, myresistance, x -> 0.125, ρ)
 
 function findchain(segs, track, control, res, ρ, V)
     function isinseg(x, seg)
@@ -523,118 +465,52 @@ function findchain(segs, track, control, res, ρ, V)
         if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
             # Get indices of segments in the chain
             segsequence = filter(!isnothing,[c[2] == :HoldP || c[2] == :HoldR ? findfirst(isinseg.(c[1], segs)) : nothing for c in chain[2:end-1]])
-            pushfirst!(segsequence, 1)
-            push!(segsequence, N)
+            if isempty(segsequence)
+                segsequence = [1, N]
+            else
+                pushfirst!(segsequence, 1)
+                push!(segsequence, N)
+            end
 
             # Build the complete solution
             K = length(segsequence) # number of solution to combine
-            distances = [sols[segsequence[idx], segsequence[idx+1]].t for idx=1:K-1]
-            times = [sols[segsequence[idx], segsequence[idx+1]][1,:] for idx=1:K-1]
-            speeds = [sols[segsequence[idx], segsequence[idx+1]][2,:] for idx=1:K-1]
-            ηs = [sols[segsequence[idx], segsequence[idx+1]][3,:] for idx=1:K-1]
-            
-            totdistance = vcat(distances...)
-            tottime = times[1]
-            totspeed = speeds[1]
-            totη = ηs[1]
+            if K > 2
+                distances = [sols[segsequence[idx], segsequence[idx+1]].t for idx=1:K-1]
+                times = [sols[segsequence[idx], segsequence[idx+1]][1,:] for idx=1:K-1]
+                speeds = [sols[segsequence[idx], segsequence[idx+1]][2,:] for idx=1:K-1]
+                ηs = [sols[segsequence[idx], segsequence[idx+1]][3,:] for idx=1:K-1]
+                
+                totdistance = vcat(distances...)
+                tottime = times[1]
+                totspeed = speeds[1]
+                totη = ηs[1]
+                for i = 2:K-1
+                    timeoffset = (distances[i][1] - distances[i-1][end]) / 
+                        (segs[i].mode == :HoldP ? V : W)
+                    nexttime = times[i] .+ (tottime[end] + timeoffset)
+                    nextspeed = speeds[i] 
+                    nextη = ηs[i]
 
-            # @show length(distances), length(segsequence)
-            for i = 2:K-1
-                timeoffset = (distances[i][1] - distances[i-1][end]) / 
-                    (segs[i].mode == :HoldP ? V : W)
-                nexttime = times[i] .+ (tottime[end] + timeoffset)
-                nextspeed = speeds[i] 
-                nextη = ηs[i]
+                    append!(tottime, nexttime)
+                    append!(totspeed, nextspeed)
+                    append!(totη, nextη)
+                end
 
-                append!(tottime, nexttime)
-                append!(totspeed, nextspeed)
-                append!(totη, nextη)
+                # Construct the complete ODESolution
+                totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
+                prob = ODEProblem(odefun!, totu[1], (totdistance[1], totdistance[end]))
+                sol = DiffEqBase.build_solution(prob, Tsit5(), totdistance, totu, 
+                    retcode = ReturnCode.Success)
+
+                return chain, sol
+            else # just the initial and final segment linked
+                return chain, sols[1,N]
             end
-
-            # Construct the complete ODESolution
-            totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
-            prob = ODEProblem(odefun!, totu[1], (totdistance[1], totdistance[end]))
-            sol = DiffEqBase.build_solution(prob, Tsit5(), totdistance, totu, 
-                retcode = ReturnCode.Success)
-
-            return chain, sol
         end
     end
     print(chains)
     error("Chain from start to finish of the track not found.")
 end
-
-# N = length(segs)
-# links = Matrix{Any}(nothing, N, N)
-# linkages = Dict()
-
-# links[1, 2] = link(segs[1], segs[2], steephilltrack, mycontrol, myresistance, ρ, V)
-# if !isnothing(links[1,2])
-#     linkages[segs[2]] = [segs[1]]
-# end
-
-# for k = 2:N-1
-#     z = k
-#     while !isnothing(z) && z > 0
-#         # @show k+1, z
-#         candidatelink = link(segs[z], segs[k+1], steephilltrack, mycontrol, myresistance, ρ, V)
-#         if isnothing(candidatelink)
-#             # no link possible
-#             z -= 1
-#         else # link found
-#             if k + 1 == N && z == 1 && abs(candidatelink[1].u[2,end] - vᵢ) > 3
-#                 break
-#             end
-#             links[z, k+1] = candidatelink
-#             if isnothing(get(linkages, segs[k+1], nothing))
-#                 linkages[segs[k+1]] = [segs[z]]
-#             elseif !in(segs[z], linkages[segs[k+1]])
-#                 push!(linkages[segs[k+1]], segs[z])
-#             end
-#             if z == 1
-#                 break
-#             end
-#             for i in z-1:1
-#                 if isnothing(links[i,z])
-#                     continue
-#                 end
-#                 if links[i,z][2][end][1] < links[z,k+1][2][1][1] && 
-#                     !in(segs[i], linkages[segs[k+1]])
-#                     push!(linkages[segs[k+1]], segs[i])
-#                 end
-#             end
-#             z = findlast([!in(seg, linkages[segs[k+1]]) for seg in segs[1:z-1]])
-#         end
-#     end
-# end
-
-# foreach(x -> isnothing(x) ? nothing : println(x[2]), links)
-
-# chain = []
-# k = N
-# cnt = 1 # safeguard
-# while cnt < 100
-#     for (idx, l) in enumerate(links[:,k])
-#         if !isnothing(l)
-#             if isempty(chain)
-#                 push!(chain, l)
-#                 global k = idx
-#             elseif l[2][end][1] < chain[end][2][1][1]
-#                 if l[1][2,end] ≤ 0.5
-#                     continue
-#                 end
-#                 push!(chain, l)
-#                 global k = idx
-#                 break
-#             end
-#         end
-#     end
-#     if k == 1
-#         break
-#     end
-#     global cnt += 1
-# end
-# reverse!(chain)
 
 function calculatetime(chain)
     T_regular = sum([abs(c[1][1,end]) for c in chain])
@@ -685,22 +561,3 @@ end
 chain, sol = findchain(segs, steephilltrack, mycontrol, myresistance, ρ, V)
 print(chain)
 plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain), lw = 2)
-
-# p = plot()
-# for (idx, c) in enumerate(chain)
-#     plot!(p, c[1].t, c[1][2,:]; color = modecolor(c[1].t, c[2]), lw = 3, label = false)
-#     if idx != length(chain)
-#         plot!(p, [c[1].t[end], chain[idx+1][1].t[1]], c[2][end][2] == :HoldP ? [V, V] : [W, W];
-#             color = :blue, lw = 3, label = false) # TODO implement situation for :HoldR
-#     end
-# end
-
-# @show calculatetime(chain)
-# display(p)
-# plot!(twinx(), steephilltrack; alpha = 0.5)
-# begin
-# firstsegment = 1
-# endsegment = 2
-# plot(links[firstsegment,endsegment][1].t, links[firstsegment,endsegment][1][2,:])
-# links[firstsegment, endsegment][2]
-# end

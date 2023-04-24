@@ -24,5 +24,6 @@ abstract type Tram <: Vehicle end
 
 include("Models.jl")
 include("Tracks.jl")
+include("Linking.jl")
 
 end

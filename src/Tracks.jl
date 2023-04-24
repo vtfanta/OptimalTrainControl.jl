@@ -20,7 +20,7 @@ HillyTrack(df::DataFrame) = HillyTrack(df, LinearInterpolator(df[:,:Distance], d
 
 function HillyTrack(filepath::AbstractString) 
     dfcandidate = rename!(CSV.read(filepath, DataFrame), [:Distance, :Altitude])
-    if length(names(dfcandidate)) > 2
+    if Base.length(names(dfcandidate)) > 2
         dfcandidate = rename!(CSV.read(filepath, DataFrame; transpose = true), 
             [:Distance, :Altitude])
     end
@@ -35,9 +35,27 @@ function length(t::HillyTrack)
     maximum(t.waypoints[:,:Distance])
 end
 
-function HillyTrack(X::AbstractVector{<:Real}, Y::AbstractVector{<:Real}) 
-    df = DataFrame("Distance" => X, "Altitude" => Y) 
-    HillyTrack(df, LinearInterpolator(X, Y, NoBoundaries()))
+function HillyTrack(X::AbstractVector, Y::AbstractVector) 
+    f(xprev, xnow, yprev, γ) = tan(asin(γ / -9.81))*(xnow - xprev) + yprev
+    function getys(γs, X)
+        @assert Base.length(X) == Base.length(γs) + 1 "Lengths don't match!"
+        ret = []
+        for idx in eachindex(X)
+            if idx == 1
+                push!(ret, 0.0)
+            else
+                push!(ret, f(X[idx-1],X[idx],ret[idx-1],γs[idx-1]))
+            end
+        end
+        return ret
+    end
+    if Base.length(X) == Base.length(Y)
+        df = DataFrame("Distance" => X, "Altitude" => Y) 
+        HillyTrack(df, LinearInterpolator(X, Y, NoBoundaries()))
+    elseif Base.length(X) - 1 == Base.length(Y) # Y vector consists of gradients
+        newY = getys(Y, X)
+        HillyTrack(X, newY)
+    end
 end
 
 """

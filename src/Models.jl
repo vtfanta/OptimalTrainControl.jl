@@ -17,7 +17,7 @@ function albrecht_odefun!(du, u, p, t)
     du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
 end
 
-ControlModes = Set([:MaxP, :HoldP, :HoldB, :Coast, :MaxB])
+ControlModes = Set([:MaxP, :HoldP, :HoldR, :Coast, :MaxB])
 
 mutable struct Segment
     start
@@ -30,17 +30,27 @@ Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
 function Base.show(io::IO, s::Segment) 
     show(io, s.start)
     print(io, " ~ ")
-    printstyled(io, s.mode; color = s.mode == :HoldP ? :blue : :purple)
+    printstyled(io, s.mode; color = s.mode == :HoldP ? :blue : :magenta)
     print(io, " ~ ")
     show(io, s.finish)
 end
 Base.broadcastable(s::Segment) = Ref(s)
 
-function getmildsegments(track, V, res, umax, ρ = 0)
-	midpoints = [(track.waypoints[k, :Distance] + track.waypoints[k + 1, :Distance]) / 2 for k ∈ 1:nrow(track.waypoints) - 1]
-	gs = [getgradientacceleration(track, x) for x in midpoints]
-	starts = [x for x in track.waypoints[1:end-1, :Distance]]
-	ends = [x for x in track.waypoints[2:end, :Distance]]
+function getmildsegments(params::NewModelParams)
+    @unpack track, ρ, V, umax = params
+    res = params.resistance
+
+    if isa(track, FlatTrack)
+        midpoints = [(start(track) + finish(track)) / 2]
+        gs = [0]
+        starts = [start(track)]
+        ends = [finish(track)]
+    else
+        midpoints = [(track.waypoints[k, :Distance] + track.waypoints[k + 1, :Distance]) / 2 for k ∈ 1:nrow(track.waypoints) - 1]
+        gs = [getgradientacceleration(track, x) for x in midpoints]
+        starts = [x for x in track.waypoints[1:end-1, :Distance]]
+        ends = [x for x in track.waypoints[2:end, :Distance]]
+    end
 
 	if 0 < ρ < 1
 		W = find_zero(W -> ψ(res, W) - ψ(res, V) / ρ, V)
@@ -59,7 +69,46 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
-				push!(ret, Segment(starts[i], ends[i], :HoldB))
+				push!(ret, Segment(starts[i], ends[i], :HoldR))
+			end
+		end
+	end 
+	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP))
+	push!(ret, Segment(ends[end], Inf, :HoldP))
+end
+
+function getmildsegments(track, V, res, umax, ρ = 0)
+    @warn "This version is deprecated. Use `getmildsegments(::NewModelParams)` instead."
+    if isa(track, FlatTrack)
+        midpoints = [(start(track) + finish(track)) / 2]
+        gs = [0]
+        starts = [start(track)]
+        ends = [finish(track)]
+    else
+        midpoints = [(track.waypoints[k, :Distance] + track.waypoints[k + 1, :Distance]) / 2 for k ∈ 1:nrow(track.waypoints) - 1]
+        gs = [getgradientacceleration(track, x) for x in midpoints]
+        starts = [x for x in track.waypoints[1:end-1, :Distance]]
+        ends = [x for x in track.waypoints[2:end, :Distance]]
+    end
+
+	if 0 < ρ < 1
+		W = find_zero(W -> ψ(res, W) - ψ(res, V) / ρ, V)
+	end
+	
+	ret = []
+	for (i, g) in enumerate(gs)
+		# if g ≤ resistance(res, V) ≤ umax(V) + g
+        if !(umax(V) - resistance(res, V) + g < 0) && !(-resistance(res, V) + g > 0)
+			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldP))
+			end
+		elseif 0 < ρ < 1 &&  +g - resistance(res, W) ≥ 0
+			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
+				last(ret).finish = ends[i]
+			else
+				push!(ret, Segment(starts[i], ends[i], :HoldR))
 			end
 		end
 	end 

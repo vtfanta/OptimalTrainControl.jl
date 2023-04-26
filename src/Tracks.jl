@@ -32,7 +32,7 @@ function length(t::FlatTrack)
 end
 
 function length(t::HillyTrack)
-    maximum(t.waypoints[:,:Distance])
+    maximum(t.waypoints[:,:Distance]) - minimum(t.waypoints[:,:Distance])
 end
 
 function HillyTrack(X::AbstractVector, Y::AbstractVector) 

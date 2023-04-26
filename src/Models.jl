@@ -1,12 +1,9 @@
 # module Models
 @reexport using RailDynamics
 
-export BasicScenario, MinimalTimeScenario, OptimalScenario
-export DavisResistance
-export AlbrechtModel, albrecht_odefun!
+export albrecht_odefun!
 export play, controllaw, calculatecontrol!, φ, φ′, ψ, resistance, E
-export ModelParams, ControlModes
-export Segment, getmildsegments
+export getmildsegments
 
 """
 Give the differential equations given in Albrecht et al. 2016, equations (1) and (2).
@@ -16,25 +13,6 @@ function albrecht_odefun!(du, u, p, t)
     du[1] = inv(u[2])
     du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
 end
-
-ControlModes = Set([:MaxP, :HoldP, :HoldR, :Coast, :MaxB])
-
-mutable struct Segment
-    start
-    finish
-    mode
-    entry
-    exit
-end
-Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
-function Base.show(io::IO, s::Segment) 
-    show(io, s.start)
-    print(io, " ~ ")
-    printstyled(io, s.mode; color = s.mode == :HoldP ? :blue : :magenta)
-    print(io, " ~ ")
-    show(io, s.finish)
-end
-Base.broadcastable(s::Segment) = Ref(s)
 
 function getmildsegments(params::NewModelParams)
     @unpack track, ρ, V, umax = params
@@ -116,73 +94,7 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 	push!(ret, Segment(ends[end], Inf, :HoldP))
 end
 
-mutable struct ModelParams
-    u
-    r
-    g
-    ρ
-    currentmode
-end
-Base.broadcastable(p::ModelParams) = Ref(p)
 
-mutable struct OptimalScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-    initialvalues
-    finalvalues
-    V
-    W
-    controllaw
-end
-function OptimalScenario(m, t, g, iv, fv, V)
-    f(x) = x + ψ(m.resistance, V)
-    b = find_zero((f, x -> derivative(f, x)), 10 * one(V), Roots.Newton())
-    h(x) = b + m.ρ * ψ(m.resistance, x)
-    W = find_zero((h, x -> derivative(h, x)), 10 * one(V), Roots.Newton())
-
-    OptimalScenario(m, t, g, iv, fv, V, W, nothing)
-end
-
-mutable struct MinimalTimeScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-    initialvalues
-    finalvalues
-    controllaw
-end
-MinimalTimeScenario(model, track, g, iv, fv) = MinimalTimeScenario(model, track, g, iv, fv, nothing)
-
-struct BasicScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-end
-BasicScenario(m, t) = BasicScenario(m, t, 9.81u"m/s^2")
-
-"""
-Empirical formula originally calculated for freight cars. The resistance (in N/kg) is given by
-    R = a + b * v + c * v^2,
-where v is the vehicle speed.
-"""
-struct DavisResistance <: Resistance
-    a::Real
-    b::Real
-    c::Real
-end
-
-# To allow broadcasting
-Base.broadcastable(r::DavisResistance) = Ref(r)
-
-struct AlbrechtModel <: Model
-    resistance::Resistance
-    maxcontrol
-    mincontrol
-    mass::Real
-    ρ::Real
-end
-AlbrechtModel(r, ma, mi, m) = AlbrechtModel(r, ma, mi, m, 0.0)
 
 function play(s::BasicScenario, initialvalues)
     X = 100.0

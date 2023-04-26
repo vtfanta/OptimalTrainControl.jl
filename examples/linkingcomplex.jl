@@ -364,7 +364,7 @@ function modecolor(xaxis, points)
     pointidx = 1
     currcolor = mode2color(points[pointidx][2])
     for (xidx, x) in enumerate(xaxis)
-        if pointidx < length(points) && x ≥ points[pointidx+1][1]
+        if pointidx < Base.length(points) && x ≥ points[pointidx+1][1]
             pointidx += 1
             currcolor = mode2color(points[pointidx][2])
         end
@@ -394,7 +394,7 @@ steephilltrack = HillyTrack(trackX, trackY)
 
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 
-V = 140
+V = 6.5
 # V = sqrt(2 * 63.27)
 vᵢ = sqrt(2 * 2)
 vf = vᵢ
@@ -411,7 +411,7 @@ function findchain(segs, track, control, res, ρ, V)
         W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
     end
 
-    N = length(segs)
+    N = Base.length(segs)
     sols = Matrix{Any}(nothing, N, N)
     linkages = Dict()
     chains = Set()
@@ -461,6 +461,7 @@ function findchain(segs, track, control, res, ρ, V)
             end
         end
     end
+    println(chains)
     for chain in chains
         if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
             # Get indices of segments in the chain
@@ -472,8 +473,10 @@ function findchain(segs, track, control, res, ρ, V)
                 push!(segsequence, N)
             end
 
+            @show segsequence
+
             # Build the complete solution
-            K = length(segsequence) # number of solution to combine
+            K = Base.length(segsequence) # number of solution to combine
             if K > 2
                 distances = [sols[segsequence[idx], segsequence[idx+1]].t for idx=1:K-1]
                 times = [sols[segsequence[idx], segsequence[idx+1]][1,:] for idx=1:K-1]

@@ -63,16 +63,32 @@ end
     @test segs[3].mode == :HoldR && segs[5].mode == :HoldR
 end
 
+@testset "FlatTrack" begin
+    track = FlatTrack(10e3)
+    T = 1600
+    prob = TrainProblem(;track, T)
+    atol = 5
+
+    chain, sol = solve!(prob; atol)
+    @test abs(sol[1,end] - T) ≤ atol
+    @test chain[1][1] == start(track)
+    @test chain[end][1] == finish(track)
+end
+
 @testset "Linking, ρ = 0" begin
     # From https://doi.org/10.1109/9.867018
     trackX = [0,16e3,20e3,24e3,25e3,28e3,31e3,40e3]
     trackY = [0,0,400,160,160,460,280,280]/9.81
     track = HillyTrack(trackX, trackY)
     myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
-    V = sqrt(2 * 65.43)
+    T = 3600.0
     ρ = 0
     u_max(v) = 0.125
     u_min(v) = -0.25
+    vᵢ = 2.0
+    vf = 3.0
 
-    
+    prob = TrainProblem(track = track, resistance = myresistance, T = T, 
+        umax = u_max, umin = u_min, ρ = ρ, vᵢ = vᵢ, vf = vf)
+    solve!(prob)
 end

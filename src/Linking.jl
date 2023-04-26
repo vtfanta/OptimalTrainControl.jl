@@ -45,17 +45,17 @@ function solve!(prob::TrainProblem; atol = 5)
         return sol[1,end] - T
     end
 
-    # 140 m/s is above 500 km/h, so pretty much a guaranteed upper bound
-    spanV = (RailDynamics.length(track) / T / 2, 140)
+    # These bounds are guessed
+    spanV = (RailDynamics.length(track) / T / 2, RailDynamics.length(track) / T * 2)
 
     Vopt = nothing
-    try
-        Vopt = find_zero(time_constraint, spanV; atol)
-    catch e
-        printstyled("The problem is likely infeasible. Try higher time of journey.";
-            color = :red)
-        return 
-    end
+    # try
+        Vopt = find_zero(time_constraint, spanV, Bisection(); atol)
+    # catch e
+        # printstyled("The problem is likely infeasible. Try higher time of journey.";
+            # color = :red)
+        # return 
+    # end
 
     params = NewModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf)
     chain, sol = findchain(getmildsegments(params), params)
@@ -364,11 +364,25 @@ function link(seg1::Segment, seg2::Segment, modelparams::NewModelParams)
     end
 end
 
+function chain2segsidx(chain, segs)
+    ret = []
+    for point in chain
+        if point[1] == segs[1].finish
+            push!(ret, 1)
+        elseif point[2] == :HoldP || point[2] == :HoldR
+            push!(ret, findfirst([isinseg(point[1],seg) for seg in segs]))
+        end
+    end
+    return ret
+end
+
+function isinseg(x, seg)
+    return seg.start ≤ x ≤ seg.finish
+end
+
 function findchain(segs, modelparams::NewModelParams)
     @show modelparams.V
-    function isinseg(x, seg)
-        return seg.start ≤ x ≤ seg.finish
-    end
+    
 
     ρ = modelparams.ρ
     V = modelparams.V
@@ -394,72 +408,95 @@ function findchain(segs, modelparams::NewModelParams)
 # Solution can be connected to a chain if the chain precedes the solution and the endpoint of the 
 # chain lies before the start of the solution.
 
-    # for k = 2:N-1
-    #     z = k
-    #     while z > 0
-    #         l = link(segs[z], segs[k+1], modelparams)
-    #         if isnothing(l)
-    #             z -= 1
-    #         else
-    #             sols[z, k+1] = l[1]
-    #             if z == 1
-    #                 union!(chains, [l[2]])
-    #             end
-    #             for c in chains
-    #                 if segs[z].start ≤ c[end][1] ≤ segs[z].finish && c[end][1] < l[2][1][1]
-    #                     newchain = vcat(c, l[2])
-    #                     union!(chains, [newchain])
-    #                     if (k+1) in keys(linkages)
-    #                         union!(linkages[k+1], )
-    #                     else
-
-    #                     end
-    #                 end
-    #             end
-    #         end
-    #     end
-    # end
+    linked = Dict(k => [] for k in 2:N)
+    if !isnothing(l)
+        push!(linked[2], 1)
+        sols[1,2] = l[1]
+        union!(chains, [l[2]])
+    end
 
     for k = 2:N-1
         z = k
         while z > 0
-            # @show z, k+1
+            @show z, k+1
+            println(chains, linked)
             l = link(segs[z], segs[k+1], modelparams)
-            if isnothing(l)
-                println("$z -> $(k+1) NOPE!")
+            if isnothing(l) # link is impossible
                 z -= 1
-            else
-                println("$z -> $(k+1) link found!")
-                sols[z,k+1] = l[1]
-                if z == 1 # Need to add new chain when linking to first segment
-                    union!(chains, [l[2]])
-                    linkages[k+1] = Set(z)
-                end
-                for c in chains
-                    # @show chains
-                    if segs[z].start ≤ c[end][1] ≤ segs[z].finish && c[end][1] < l[2][1][1]
-                        newchain = vcat(c, l[2])
-                        union!(chains, [newchain])
-                        if (k+1) in keys(linkages)
-                            union!(linkages[k+1], get(linkages, z, Set()))
-                            union!(linkages[k+1], z)
-                        else
-                            linkages[k+1] = union(get(linkages, z, Set()), z)
-                        end
-                    else
+            else # link is possible
+                sols[z,k+1] = l[1] # save solution
+                if z == 1 # linking to initial segment
+                    union!(chains, [l[2]]) # starting new chain
+                    push!(linked[k+1], 1) # (k+1)-th segment is linked to initial segment
+                    unique!(linked[k+1])
+                    sort!(linked[k+1])
+                    z -= 1
+                else # linking to inner segment
+                    for c in chains # find chains which can be connected
+                        if isinseg(c[end][1], segs[z]) && c[end][1] < l[2][1][1]
+                            newchain = vcat(c, l[2])
+                            union!(chains, [newchain]) # add prolonged chain to set of chains
+                            push!(linked[k+1], z)
 
-                        linkages[k+1] = Set()
+                            # chainsegseq = filter(!isnothing,[ch[2] == :HoldP || ch[2] == :HoldR ?   findfirst(isinseg.(ch[1], segs)) : nothing for ch in c])
+                            chainsegseq = chain2segsidx(c, segs)
+                            @show c, chainsegseq
+                            append!(linked[k+1], chainsegseq)
+                            unique!(linked[k+1])
+                            sort!(linked[k+1])
+                        end
                     end
-                end
-                # Find furthest segment which is not linked to k+1
-                
-                z = findlast([!(s in get(linkages, k+1, Set())) for s in eachindex(segs[1:z-1])])
-                if isnothing(z)
-                    break
-                end
+                    z = findlast([!in(j, linked[k+1]) for j=1:z-1])
+                    if isnothing(z)
+                        z = 0
+                        break
+                    end
+                end 
             end
         end
     end
+
+
+    # for k = 2:N-1
+    #     z = k
+    #     while z > 0
+    #         # @show z, k+1
+    #         l = link(segs[z], segs[k+1], modelparams)
+    #         if isnothing(l)
+    #             println("$z -> $(k+1) NOPE!")
+    #             z -= 1
+    #         else
+    #             println("$z -> $(k+1) link found!")
+    #             sols[z,k+1] = l[1]
+    #             if z == 1 # Need to add new chain when linking to first segment
+    #                 union!(chains, [l[2]])
+    #                 linkages[k+1] = Set(z)
+    #             end
+    #             for c in chains
+    #                 # @show chains
+    #                 if segs[z].start ≤ c[end][1] ≤ segs[z].finish && c[end][1] < l[2][1][1]
+    #                     newchain = vcat(c, l[2])
+    #                     union!(chains, [newchain])
+    #                     if (k+1) in keys(linkages)
+    #                         union!(linkages[k+1], get(linkages, z, Set()))
+    #                         union!(linkages[k+1], z)
+    #                     else
+    #                         linkages[k+1] = union(get(linkages, z, Set()), z)
+    #                     end
+    #                 else
+
+    #                     linkages[k+1] = Set()
+    #                 end
+    #             end
+    #             # Find furthest segment which is not linked to k+1
+                
+    #             z = findlast([!(s in get(linkages, k+1, Set())) for s in eachindex(segs[1:z-1])])
+    #             if isnothing(z)
+    #                 break
+    #             end
+    #         end
+    #     end
+    # end
     candidatechains = filter(c -> c[1][1] == start(track) && c[end][1] == finish(track), chains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain

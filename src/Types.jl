@@ -82,7 +82,6 @@ struct BasicScenario <: Scenario
     track::Track
     g::Real
 end
-BasicScenario(m, t) = BasicScenario(m, t, 9.81u"m/s^2")
 
 mutable struct Segment
     start

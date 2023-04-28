@@ -9,7 +9,6 @@ using Parameters
 using RecipesBase
 using Reexport
 using Roots
-using Unitful
 
 include("Types.jl")
 include("Models.jl")

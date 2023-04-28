@@ -33,6 +33,9 @@ end
 
 function solve!(prob::TrainProblem; atol = 5)
     @unpack track, ρ, vᵢ, vf, T, resistance, umax, umin = prob
+
+    @assert 0 ≤ ρ < 1 "Wrong value of ρ. Set 0 ≤ ρ < 1."
+
     if isa(track, FlatTrack)
         track = HillyTrack([0, track.X], [0,0])
     end
@@ -240,16 +243,26 @@ function link(seg1::Segment, seg2::Segment, modelparams::NewModelParams)
         W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
     end
 
-    @info "Linking $seg1 \t+\t $seg2"
+    # @info "Linking $seg1 \t+\t $seg2"
 
     if !isinf(seg1.start) && !isinf(seg2.finish) # link inner segments
         if seg1.finish > seg2.start
             error("Segment 1 has to precede segment 2.")
         end
 
-        domain = (seg1.start, seg1.finish - 1)
+        if seg1.mode == :HoldP
 
-        nudge = getgradientacceleration(track, seg1.finish + 1) < 0 ? :MaxP : :Coast
+            domain = (seg1.start, seg1.finish - 1)
+
+            nudge = getgradientacceleration(track, seg1.finish + 1) < 0 ? :MaxP : :Coast
+        else # seg1.mode == :HoldR
+            domain = (seg1.start, seg1.finish + 1)
+
+            currg = getgradientacceleration(track, seg1.finish - 1)
+            nextg = getgradientacceleration(track, seg1.finish + 1)
+
+            nudge = (currg - nextg) > 0 ? :Coast : :MaxB
+        end
 
         valleft = try_link(domain[1], seg2, nudge, modelparams)
         valright = try_link(domain[2], seg2, nudge, modelparams)
@@ -418,8 +431,8 @@ function findchain(segs, modelparams::NewModelParams)
     for k = 2:N-1
         z = k
         while z > 0
-            @show z, k+1
-            println(chains, linked)
+            # @show z, k+1
+            # println(chains, linked)
             l = link(segs[z], segs[k+1], modelparams)
             if isnothing(l) # link is impossible
                 z -= 1
@@ -440,7 +453,7 @@ function findchain(segs, modelparams::NewModelParams)
 
                             # chainsegseq = filter(!isnothing,[ch[2] == :HoldP || ch[2] == :HoldR ?   findfirst(isinseg.(ch[1], segs)) : nothing for ch in c])
                             chainsegseq = chain2segsidx(c, segs)
-                            @show c, chainsegseq
+                            # @show c, chainsegseq
                             append!(linked[k+1], chainsegseq)
                             unique!(linked[k+1])
                             sort!(linked[k+1])
@@ -456,48 +469,8 @@ function findchain(segs, modelparams::NewModelParams)
         end
     end
 
-
-    # for k = 2:N-1
-    #     z = k
-    #     while z > 0
-    #         # @show z, k+1
-    #         l = link(segs[z], segs[k+1], modelparams)
-    #         if isnothing(l)
-    #             println("$z -> $(k+1) NOPE!")
-    #             z -= 1
-    #         else
-    #             println("$z -> $(k+1) link found!")
-    #             sols[z,k+1] = l[1]
-    #             if z == 1 # Need to add new chain when linking to first segment
-    #                 union!(chains, [l[2]])
-    #                 linkages[k+1] = Set(z)
-    #             end
-    #             for c in chains
-    #                 # @show chains
-    #                 if segs[z].start ≤ c[end][1] ≤ segs[z].finish && c[end][1] < l[2][1][1]
-    #                     newchain = vcat(c, l[2])
-    #                     union!(chains, [newchain])
-    #                     if (k+1) in keys(linkages)
-    #                         union!(linkages[k+1], get(linkages, z, Set()))
-    #                         union!(linkages[k+1], z)
-    #                     else
-    #                         linkages[k+1] = union(get(linkages, z, Set()), z)
-    #                     end
-    #                 else
-
-    #                     linkages[k+1] = Set()
-    #                 end
-    #             end
-    #             # Find furthest segment which is not linked to k+1
-                
-    #             z = findlast([!(s in get(linkages, k+1, Set())) for s in eachindex(segs[1:z-1])])
-    #             if isnothing(z)
-    #                 break
-    #             end
-    #         end
-    #     end
-    # end
     candidatechains = filter(c -> c[1][1] == start(track) && c[end][1] == finish(track), chains)
+    # println(candidatechains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain
@@ -509,7 +482,7 @@ function findchain(segs, modelparams::NewModelParams)
             push!(segsequence, N)
         end
 
-        @show segsequence
+        # @show segsequence
 
         # Build the complete solution
         K = Base.length(segsequence) # number of solution to combine

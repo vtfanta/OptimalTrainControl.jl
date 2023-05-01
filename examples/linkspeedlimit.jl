@@ -120,6 +120,16 @@ function local_energy(u0, x0, p0, seg2)
     J = integrate(x, E.(myresistance, V, v) .- E(myresistance, V, V))
 end
 
+function speedlimits(x)
+    if x ≤ 1000
+        30
+    elseif 1000 < x ≤ 4000
+        25.5
+    else
+        20
+    end
+end
+
 trackX = [0,2e3,2.5e3,5e3]
 trackY = [0,0,5,5]
 
@@ -141,6 +151,6 @@ xopt = 1367.20994119338
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
+plot(sol.t, sol[3,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5, label = false)
 hline!([speedlimit]; label = false)

@@ -41,18 +41,18 @@ function getmildsegments(params::NewModelParams)
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
-				push!(ret, Segment(starts[i], ends[i], :HoldP))
+				push!(ret, Segment(starts[i], ends[i], :HoldP, V))
 			end
 		elseif 0 < ρ < 1 &&  +g - resistance(res, W) ≥ 0
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
-				push!(ret, Segment(starts[i], ends[i], :HoldR))
+				push!(ret, Segment(starts[i], ends[i], :HoldR, W))
 			end
 		end
 	end 
-	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP))
-	push!(ret, Segment(ends[end], Inf, :HoldP))
+	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP, V))
+	push!(ret, Segment(ends[end], Inf, :HoldP, V))
 end
 
 function getmildsegments(track, V, res, umax, ρ = 0)
@@ -80,18 +80,18 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldP && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
-				push!(ret, Segment(starts[i], ends[i], :HoldP))
+				push!(ret, Segment(starts[i], ends[i], :HoldP, V))
 			end
 		elseif 0 < ρ < 1 &&  +g - resistance(res, W) ≥ 0
 			if Base.length(ret) ≥ 1 && last(ret).mode == :HoldR && starts[i] == last(ret).finish
 				last(ret).finish = ends[i]
 			else
-				push!(ret, Segment(starts[i], ends[i], :HoldR))
+				push!(ret, Segment(starts[i], ends[i], :HoldR, W))
 			end
 		end
 	end 
-	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP))
-	push!(ret, Segment(ends[end], Inf, :HoldP))
+	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP, V))
+	push!(ret, Segment(ends[end], Inf, :HoldP, V))
 end
 
 

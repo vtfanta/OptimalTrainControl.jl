@@ -87,10 +87,9 @@ mutable struct Segment
     start
     finish
     mode
-    entry
-    exit
+    holdspeed
 end
-Segment(s,f,m) = Segment(s,f,m,nothing,nothing)
+Segment(s,f,m) = Segment(s,f,m,nothing)
 function Base.show(io::IO, s::Segment) 
     show(io, s.start)
     print(io, " ~ ")

@@ -99,20 +99,14 @@ end
 
 function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch = true)
     ρ = p.modelparams.ρ
-    res = p.modelparams.resistance
-    V = p.modelparams.V
     track = p.modelparams.track
-
-    if ρ > 0
-        W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
-    end
 
     condition_lowspeed(u, t, int) = u[2] - 1e-2
     affect_lowspeed!(int) = terminate!(int)
     function condition_modeswitch(out, u, t, int)
         out[1] = u[3]
         out[2] = u[3] - (ρ - 1)
-        out[3] = u[2] - (seg2.mode == :HoldP ? V : W)
+        out[3] = u[2] - seg2.holdspeed
     end
     function affect_modeswitch!(int, idx)
         if idx == 3 && int.t ≥ seg2.start && !isinf(seg2.start)
@@ -418,8 +412,8 @@ function findchain(segs, modelparams::NewModelParams)
         sols[1,2] = l[1]
     end
 
-# Solution can be connected to a chain if the chain precedes the solution and the endpoint of the 
-# chain lies before the start of the solution.
+    # Solution can be connected to a chain if the chain precedes the solution and the endpoint of the 
+    # chain lies before the start of the solution.
 
     linked = Dict(k => [] for k in 2:N)
     if !isnothing(l)
@@ -497,8 +491,7 @@ function findchain(segs, modelparams::NewModelParams)
             totspeed = speeds[1]
             # totη = ηs[1]
             for i = 2:K-1
-                timeoffset = (distances[i][1] - distances[i-1][end]) / 
-                    (segs[i].mode == :HoldP ? V : W)
+                timeoffset = (distances[i][1] - distances[i-1][end]) / segs[i].holdspeed
                 nexttime = times[i] .+ (tottime[end] + timeoffset)
                 nextspeed = speeds[i] 
                 # nextη = ηs[i]

@@ -56,9 +56,8 @@ end
     myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
     V = sqrt(2 * 65.43)
     ρ = 0.7
-    u_max(v) = 0.125
 
-    segs = getmildsegments(track, V, myresistance, u_max, ρ)
+    segs = getmildsegments(track, V, myresistance, v -> 0.125, ρ)
     @test length(segs) == 7
     @test segs[3].mode == :HoldR && segs[5].mode == :HoldR
 end

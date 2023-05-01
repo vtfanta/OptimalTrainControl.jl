@@ -64,7 +64,7 @@ function solve!(prob::TrainProblem; atol = 5)
     chain, sol = findchain(getmildsegments(params), params)
     prob.states = sol
     prob.switchingpoints = chain
-    return 
+    return chain, sol
 end
 
 function control(v, x, params::SolverParams)

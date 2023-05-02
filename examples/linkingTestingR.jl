@@ -9,7 +9,7 @@ trackY = [0,0,-600,-600]/9.81
 track = HillyTrack(trackX, trackY)
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 V = 15.5
-ρ = 0.5
+ρ = 0.55
 u_max(v) = 0.125
 u_min(v) = -0.25
 vᵢ = 2.0
@@ -25,7 +25,7 @@ vf = 2.0
 # chain, sol = RailDynamics.findchain(segs, modelparams)
 # plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain))
 
-prob = TrainProblem(track = track, T = 3000, umax = u_max, umin = u_min, ρ = ρ,
+prob = TrainProblem(track = track, T = 2500, umax = u_max, umin = u_min, ρ = ρ,
     vᵢ = vᵢ, vf = vf, resistance = myresistance)
 solve!(prob)
 

@@ -429,6 +429,13 @@ function findchain(segs, modelparams::NewModelParams)
                 z -= 1
             else # link is possible
                 sols[z,k+1] = l[1] # save solution
+
+                # discard erroneous linkages
+                if abs(l[2][end][1] - segs[k+1].finish) < 1
+                    z -= 1
+                    continue
+                end
+
                 if z == 1 # linking to initial segment
                     union!(chains, [l[2]]) # starting new chain
                     push!(linked[k+1], 1) # (k+1)-th segment is linked to initial segment
@@ -461,7 +468,7 @@ function findchain(segs, modelparams::NewModelParams)
     end
 
     candidatechains = filter(c -> c[1][1] == start(track) && isnothing(c[end][2]), chains)
-    println(candidatechains)
+    # println(candidatechains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain

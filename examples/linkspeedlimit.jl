@@ -59,13 +59,24 @@ function solve_regular!(u0, span, p0, seg2, x0 = nothing)
         end
     end
 
+    function affect_speedlimit!(int)
+        int.u[3] += x0
+        if int.u[3] > 0
+            int.p.currentmode = :MaxP
+        elseif p0.ρ ≤ int.u[3] ≤ 0
+            int.p.currentmode = :Coast
+        else
+            int.p.currentmode = :MaxB
+        end
+    end
+
     cb_modeswitch = VectorContinuousCallback(condition_modeswitch, affect_modeswitch!, affect_neg_modeswitch!, 2)
     cb_lowspeed = ContinuousCallback(condition_lowspeed, affect_lowspeed!)
 
     tstops = [r[:Distance] for r in eachrow(steephilltrack.waypoints)]
 
     if !isnothing(x0)
-        cb_speedlimit = ContinuousCallback((u, t, int) -> u[2] - speedlimit, int -> int.u[3] += x0)
+        cb_speedlimit = ContinuousCallback((u, t, int) -> u[2] - speedlimit, affect_speedlimit!)
         cbS = CallbackSet(cb_modeswitch, cb_lowspeed, cb_speedlimit)
     else
         cbS = CallbackSet(cb_modeswitch, cb_lowspeed)
@@ -97,24 +108,28 @@ function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
         elseif v[end] ≤ 0.1
             -Inf
         else
-            v[end] - V
+            if seg2.mode == :HoldP
+                v[end] - seg2.holdspeed
+            elseif seg2.mode == :HoldR
+                v[end] - seg2.holdspeed
+            end
         end
     elseif linkmode == :speedlimit
         p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
         (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
         sol = solve_regular!([0.0, V, 0.0], (start, seg2.finish), p0, seg2, x0)
 
-        @show sol.t[end]
-        @show sol[2,end],sol[3,end]
-        display(plot(sol.t, sol[3,:]))
-        display(vline!([seg2.start]))
+        # @show sol.t[end]
+        # @show sol[2,end],sol[3,end]
+        # display(plot(sol.t, sol[3,:]))
+        # display(vline!([seg2.start, seg2.finish]))
 
         if sol.t[end] ≈ seg2.finish
             sign(sol[3,end]) * Inf
         elseif sol[2,end] ≤ 0.1
             - Inf
         else
-            sol[2,end] - V
+            sol[2,end] - seg2.holdspeed
         end
     end
 end
@@ -158,7 +173,7 @@ steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
 myresistance = DavisResistance(1e-2,0,1.5e-5)
 
 V = 25.0
-speedlimit = 25.5
+speedlimit = 25.2
 segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 @show segs
 ρ = 0
@@ -166,11 +181,18 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 startingmode = :MaxP
 targetseg = segs[3]
 
-# xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[2].start, segs[2].finish-1))
-xopt = 1367.20994119338
+xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[2].start, segs[2].finish-1))
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
+if maximum(sol[2,:]) ≈ speedlimit
+    println("CONDITION!")
+    Δη = find_zero(η -> try_link(η, targetseg, startingmode, :speedlimit, xopt), (-1, 1))
+    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
+    sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg, Δη)
+end
+
+plot(sol.t, sol[3,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5, label = false)
 hline!([speedlimit]; label = false)

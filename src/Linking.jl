@@ -167,12 +167,6 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
         seg1 = segs[seg1idx]
     end
 
-    V = modelparams.V
-    if modelparams.ρ > 0
-        res = modelparams.resistance
-        W = find_zero(W -> modelparams.ρ * ψ(res, W) - ψ(res, V), (V, Inf))
-    end
-
     # Link first segment to final segment
     if across
         sol, _ = solve_regular!([0.0, vinit, 0.0], (x0, finish(modelparams.track)), p0, seg2)
@@ -223,7 +217,7 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
             η[end]
         elseif seg2.mode == :HoldR
             # v[end] - seg2.holdspeed
-            η[end] - modelparams.ρ + 1
+            η[end] - (modelparams.ρ - 1)
         end
     end
 end
@@ -466,8 +460,8 @@ function findchain(segs, modelparams::NewModelParams)
         end
     end
 
-    candidatechains = filter(c -> c[1][1] == start(track) && c[end][1] == finish(track), chains)
-    # println(candidatechains)
+    candidatechains = filter(c -> c[1][1] == start(track) && isnothing(c[end][2]), chains)
+    println(candidatechains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain
@@ -492,16 +486,16 @@ function findchain(segs, modelparams::NewModelParams)
             totdistance = vcat(distances...)
             tottime = times[1]
             totspeed = speeds[1]
-            # totη = ηs[1]
+            totη = ηs[1]
             for i = 2:K-1
                 timeoffset = (distances[i][1] - distances[i-1][end]) / segs[i].holdspeed
                 nexttime = times[i] .+ (tottime[end] + timeoffset)
                 nextspeed = speeds[i] 
-                # nextη = ηs[i]
+                nextη = ηs[i]
 
                 append!(tottime, nexttime)
                 append!(totspeed, nextspeed)
-                # append!(totη, nextη)
+                append!(totη, nextη)
             end
 
             # Construct the complete ODESolution

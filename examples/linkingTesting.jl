@@ -7,7 +7,7 @@ trackY = [0,0,400,160,160,460,280,280]/9.81
 track = HillyTrack(trackX, trackY)
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 T = 3600.0
-ρ = 0
+ρ = 0.5
 u_max(v) = 0.125
 u_min(v) = -0.25
 vᵢ = 2.0
@@ -23,7 +23,7 @@ display(plot!(twinx(), track; alpha = 0.5))
 
 # flattrack = FlatTrack(20e3)
 # flatT = 1350 # seconds
-# flatprob = TrainProblem(;track = flattrack, T = flatT, ρ = 0.7)
+# flatprob = TrainProblem(;track = flattrack, T = flatT, ρ)
 # solve!(flatprob)
 # flatchain, flatsol = flatprob.switchingpoints, flatprob.states
 # @show flatsol[1,end] - flatT

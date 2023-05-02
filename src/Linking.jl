@@ -107,6 +107,7 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
         out[1] = u[3]
         out[2] = u[3] - (ρ - 1)
         out[3] = u[2] - seg2.holdspeed
+        # out[3] = seg2.mode == :HoldP ? u[3] : u[3] - ρ + 1
     end
     function affect_modeswitch!(int, idx)
         if idx == 3 && int.t ≥ seg2.start && !isinf(seg2.start)
@@ -184,7 +185,7 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
 
     # Link first segment
     if isinf(seg2.start)
-        u0 = seg2.mode == :HoldP ? [0.0, V, 0.0] : [0.0, W, modelparams.ρ - 1]
+        u0 = seg2.mode == :HoldP ? [0.0, seg2.holdspeed, 0.0] : [0.0, seg2.holdspeed, modelparams.ρ - 1]
         sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2, false)    
         if sol.retcode == ReturnCode.Terminated # came to stop before finish
             return -Inf
@@ -195,7 +196,7 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
 
     # Link final segment
     if isinf(seg2.finish)
-        u0 = seg1.mode == :HoldP ? [0.0, V, 0.0] : [0.0, W, modelparams.ρ - 1]
+        u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
         sol, _ = solve_regular!(u0, (x0, seg2.start), p0, seg2)
         if sol.retcode == ReturnCode.Terminated # came to stop before finish
             return -Inf
@@ -205,7 +206,7 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
     end
 
     # Link inner segments
-    u0 = seg1.mode == :HoldP ? [0.0, V, 0.0] : [0.0, W, modelparams.ρ - 1]
+    u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
     sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
 
     v = sol[2,:]
@@ -218,9 +219,11 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
         -Inf
     else
         if seg2.mode == :HoldP
-            v[end] - modelparams.V
+            # v[end] - seg2.holdspeed
+            η[end]
         elseif seg2.mode == :HoldR
-            v[end] - W
+            # v[end] - seg2.holdspeed
+            η[end] - modelparams.ρ + 1
         end
     end
 end

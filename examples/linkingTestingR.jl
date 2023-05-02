@@ -12,8 +12,8 @@ u_min(v) = -0.25
 vᵢ = 2.0
 vf = 2.0
 
-modelparams = RailDynamics.NewModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
-segs = RailDynamics.getmildsegments(modelparams)
+# modelparams = RailDynamics.NewModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
+# segs = RailDynamics.getmildsegments(modelparams)
 
 # l = RailDynamics.link(segs[4],segs[5],modelparams)
 # println(l[2])

@@ -29,7 +29,7 @@ function mycontrol(u, p, x)
     end
 end
 
-function solve_regular!(u0, span, p0, seg2)
+function solve_regular!(u0, span, p0, seg2, x0 = nothing)
     condition_lowspeed(u, t, int) = u[2] - 1e-2
     affect_lowspeed!(int) = terminate!(int)
     function condition_modeswitch(out, u, t, int)
@@ -46,7 +46,6 @@ function solve_regular!(u0, span, p0, seg2)
         elseif idx == 2 && int.p.currentmode == :MaxB
             int.p.currentmode = :Coast
         end
-        # @show int.t, int.p.currentmode
     end
     function affect_neg_modeswitch!(int, idx)
         if idx == 1 && int.t ≥ seg2.start
@@ -58,7 +57,6 @@ function solve_regular!(u0, span, p0, seg2)
         elseif idx == 2 && int.p.currentmode == :Coast
             int.p.currentmode = :MaxB
         end
-        # @show int.t, int.p.currentmode
     end
 
     cb_modeswitch = VectorContinuousCallback(condition_modeswitch, affect_modeswitch!, affect_neg_modeswitch!, 2)
@@ -66,36 +64,58 @@ function solve_regular!(u0, span, p0, seg2)
 
     tstops = [r[:Distance] for r in eachrow(steephilltrack.waypoints)]
 
-    cb_speedlimit = ContinuousCallback((u, t, int) -> u[2] - speedlimit, int -> int.t ≥ seg2.start ? nothing : int.u[3] += 0.0020372)
-    
-    cbS = CallbackSet(cb_modeswitch, cb_lowspeed, cb_speedlimit)
+    if !isnothing(x0)
+        cb_speedlimit = ContinuousCallback((u, t, int) -> u[2] - speedlimit, int -> int.u[3] += x0)
+        cbS = CallbackSet(cb_modeswitch, cb_lowspeed, cb_speedlimit)
+    else
+        cbS = CallbackSet(cb_modeswitch, cb_lowspeed)
+    end
     
     prob = ODEProblem(odefun!, u0, span, p0)
     solve(prob;alg_hints = [:stiff], tstops, callback = cbS, d_discontinuities = tstops, 
         dtmax = 10)
 end
 
-function try_link(x0, seg2, initmode)
-    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
-    (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
-    sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
+    if linkmode == :normal
+        p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+        (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
+        sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
-    v = sol[2,:]
-    η = sol[3,:]
-    x = sol.t
+        v = sol[2,:]
+        η = sol[3,:]
+        x = sol.t
 
-    @show x[end]
+        # @show x[end]
 
-    if maximum(v) > speedlimit
-        return Inf
-    end
+        if maximum(v) > speedlimit
+            return Inf
+        end
 
-    if x[end] ≈ seg2.finish
-        sign(η[end]) * Inf
-    elseif v[end] ≤ 0.1
-        -Inf
-    else
-        v[end] - V
+        if x[end] ≈ seg2.finish
+            sign(η[end]) * Inf
+        elseif v[end] ≤ 0.1
+            -Inf
+        else
+            v[end] - V
+        end
+    elseif linkmode == :speedlimit
+        p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+        (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
+        sol = solve_regular!([0.0, V, 0.0], (start, seg2.finish), p0, seg2, x0)
+
+        @show sol.t[end]
+        @show sol[2,end],sol[3,end]
+        display(plot(sol.t, sol[3,:]))
+        display(vline!([seg2.start]))
+
+        if sol.t[end] ≈ seg2.finish
+            sign(sol[3,end]) * Inf
+        elseif sol[2,end] ≤ 0.1
+            - Inf
+        else
+            sol[2,end] - V
+        end
     end
 end
 
@@ -151,6 +171,6 @@ xopt = 1367.20994119338
 p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
-plot(sol.t, sol[3,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
+plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5, label = false)
 hline!([speedlimit]; label = false)

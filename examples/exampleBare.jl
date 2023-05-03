@@ -1,4 +1,4 @@
-using RailDynamics
+using OptimalTrainControl
 using Plots
 
 myresistance = DavisResistance(0, 0.5, 1.3)

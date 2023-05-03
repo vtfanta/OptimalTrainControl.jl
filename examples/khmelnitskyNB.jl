@@ -15,7 +15,7 @@ Pkg.add("DiffEqCallbacks")
 
 # ╔═╡ 28c11473-c285-49bd-92ed-ece57bdd15f1
 begin
-	using RailDynamics
+	using OptimalTrainControl
 	using Roots
 	using Plots
 	using DifferentialEquations

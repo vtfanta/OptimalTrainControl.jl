@@ -1,4 +1,4 @@
-using RailDynamics
+using OptimalTrainControl
 using Roots
 using Plots
 using DifferentialEquations

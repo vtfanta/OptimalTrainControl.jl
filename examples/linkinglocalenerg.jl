@@ -1,7 +1,7 @@
 using DifferentialEquations
 import NumericalIntegration: integrate
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 import ForwardDiff: derivative
 

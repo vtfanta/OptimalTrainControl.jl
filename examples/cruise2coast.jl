@@ -1,5 +1,5 @@
 using DifferentialEquations
-using RailDynamics
+using OptimalTrainControl
 using Roots
 
 function decider(xcruisestart)

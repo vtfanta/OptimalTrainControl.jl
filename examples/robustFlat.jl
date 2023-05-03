@@ -1,4 +1,4 @@
-using RailDynamics
+using OptimalTrainControl
 using DifferentialEquations
 import ForwardDiff: derivative
 import Roots: find_zero

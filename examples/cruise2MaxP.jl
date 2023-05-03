@@ -2,7 +2,7 @@ using BenchmarkTools
 using DifferentialEquations
 using NumericalIntegration
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 import ForwardDiff: derivative
 

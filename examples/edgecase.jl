@@ -2,7 +2,7 @@ using DifferentialEquations
 using DiffEqCallbacks
 import NumericalIntegration: integrate
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 import ForwardDiff: derivative
 

@@ -1,4 +1,4 @@
-name = "RailDynamics"
+name = "OptimalTrainControl"
 uuid = "def5d3d9-a34b-4daf-bc22-0581843f8b2c"
 authors = ["Vít Fanta <fantavit@fel.cvut.cz> and contributors"]
 version = "0.1.0"

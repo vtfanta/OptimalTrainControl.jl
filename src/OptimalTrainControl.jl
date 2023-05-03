@@ -1,4 +1,4 @@
-module RailDynamics
+module OptimalTrainControl
 
 using BasicInterpolators
 using CSV

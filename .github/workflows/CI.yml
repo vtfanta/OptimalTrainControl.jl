@@ -54,6 +54,6 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Documenter: DocMeta, doctest
-            using RailDynamics
-            DocMeta.setdocmeta!(RailDynamics, :DocTestSetup, :(using RailDynamics); recursive=true)
-            doctest(RailDynamics)'
+            using OptimalTrainControl
+            DocMeta.setdocmeta!(OptimalTrainControl, :DocTestSetup, :(using OptimalTrainControl); recursive=true)
+            doctest(OptimalTrainControl)'

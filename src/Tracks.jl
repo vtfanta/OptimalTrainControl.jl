@@ -1,4 +1,4 @@
-@reexport using RailDynamics
+@reexport using OptimalTrainControl
 
 export FlatTrack, HillyTrack
 export getgrade, inclinationforce, getgradientacceleration

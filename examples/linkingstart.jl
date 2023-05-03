@@ -1,6 +1,6 @@
 using DifferentialEquations
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 import ForwardDiff: derivative
 

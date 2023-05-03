@@ -1,6 +1,6 @@
 using BasicInterpolators
 using Plots
-using RailDynamics
+using OptimalTrainControl
 
 # From HW5 of ORR
 

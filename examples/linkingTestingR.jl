@@ -1,4 +1,4 @@
-using RailDynamics
+using OptimalTrainControl
 using Plots
 
 # trackX = [0,16e3,20e3,24e3,25e3,28e3,31e3,40e3]
@@ -15,14 +15,14 @@ u_min(v) = -0.25
 vᵢ = 2.0
 vf = 2.0
 
-# modelparams = RailDynamics.NewModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
-# segs = RailDynamics.getmildsegments(modelparams)
-# l = RailDynamics.link(segs[3],segs[4],modelparams)
+# modelparams = OptimalTrainControl.NewModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
+# segs = OptimalTrainControl.getmildsegments(modelparams)
+# l = OptimalTrainControl.link(segs[3],segs[4],modelparams)
 # println(l[2])
 # display(plot(l[1].t,l[1][2,:]; color = modecolor(l[1].t, l[2]), lw = 2, label = false))
 # display(plot!(twinx(), track; alpha = 0.5))
 
-# chain, sol = RailDynamics.findchain(segs, modelparams)
+# chain, sol = OptimalTrainControl.findchain(segs, modelparams)
 # plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain))
 
 prob = TrainProblem(track = track, T = 2900, umax = u_max, umin = u_min, ρ = ρ,

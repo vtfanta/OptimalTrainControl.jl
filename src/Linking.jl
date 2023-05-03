@@ -1,4 +1,4 @@
-@reexport using RailDynamics
+@reexport using OptimalTrainControl
 
 export solve!, modecolor
 
@@ -49,7 +49,7 @@ function solve!(prob::TrainProblem; atol = 5)
     end
 
     # These bounds are guessed
-    spanV = (RailDynamics.length(track) / T / 2, RailDynamics.length(track) / T * 2)
+    spanV = (OptimalTrainControl.length(track) / T / 2, OptimalTrainControl.length(track) / T * 2)
 
     Vopt = nothing
     # try

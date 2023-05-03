@@ -29,7 +29,7 @@ end
 using DifferentialEquations
 
 # ╔═╡ d0e4a291-ff3b-484d-959a-d185a8d71073
-using RailDynamics
+using OptimalTrainControl
 
 # ╔═╡ 425edfc2-c7d8-47c0-959f-11cd7bd58e57
 using Roots

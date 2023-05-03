@@ -1,16 +1,16 @@
-using RailDynamics
+using OptimalTrainControl
 using Documenter
 
-DocMeta.setdocmeta!(RailDynamics, :DocTestSetup, :(using RailDynamics); recursive=true)
+DocMeta.setdocmeta!(OptimalTrainControl, :DocTestSetup, :(using OptimalTrainControl); recursive=true)
 
 makedocs(;
-    modules=[RailDynamics],
+    modules=[OptimalTrainControl],
     authors="Vít Fanta <fantavit@fel.cvut.cz>",
-    repo="https://github.com/vtfanta/RailDynamics.jl/blob/{commit}{path}#{line}",
-    sitename="RailDynamics.jl",
+    repo="https://github.com/vtfanta/OptimalTrainControl.jl/blob/{commit}{path}#{line}",
+    sitename="OptimalTrainControl.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://vtfanta.github.io/RailDynamics.jl",
+        canonical="https://vtfanta.github.io/OptimalTrainControl.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -20,6 +20,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/vtfanta/RailDynamics.jl",
+    repo="github.com/vtfanta/OptimalTrainControl.jl",
     devbranch="main",
 )

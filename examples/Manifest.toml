@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "0397ec588cb24a34fe54b853b11f3c7fa86304a0"
+project_hash = "5fdacea2b69e3350c652a15eb86810ca94a96ac1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -1088,6 +1088,12 @@ git-tree-sha1 = "1903afc76b7d01719d9c30d3c7d501b61db96721"
 uuid = "429524aa-4258-5aef-a3af-852621145aeb"
 version = "1.7.4"
 
+[[deps.OptimalTrainControl]]
+deps = ["BasicInterpolators", "CSV", "DataFrames", "DifferentialEquations", "ForwardDiff", "Parameters", "RecipesBase", "Reexport", "Revise", "Roots", "Tables"]
+path = ".."
+uuid = "def5d3d9-a34b-4daf-bc22-0581843f8b2c"
+version = "0.1.0"
+
 [[deps.Opus_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "51a08fb14ec28da2ec7a927c4337e4332c2a4720"
@@ -1268,12 +1274,6 @@ version = "2.8.2"
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
-
-[[deps.RailDynamics]]
-deps = ["BasicInterpolators", "CSV", "DataFrames", "DifferentialEquations", "ForwardDiff", "Parameters", "RecipesBase", "Reexport", "Revise", "Roots", "Tables", "Unitful"]
-path = ".."
-uuid = "def5d3d9-a34b-4daf-bc22-0581843f8b2c"
-version = "0.1.0"
 
 [[deps.Random]]
 deps = ["SHA", "Serialization"]
@@ -1709,12 +1709,6 @@ deps = ["REPL"]
 git-tree-sha1 = "53915e50200959667e78a92a418594b428dffddf"
 uuid = "1cfade01-22cf-5700-b092-accc4b62d6e1"
 version = "0.4.1"
-
-[[deps.Unitful]]
-deps = ["ConstructionBase", "Dates", "LinearAlgebra", "Random"]
-git-tree-sha1 = "dba3eba51b9512695b59e0bd8263ac074c5ed2d9"
-uuid = "1986cc42-f94f-5a68-af5c-568840ba703d"
-version = "1.13.1"
 
 [[deps.Unzip]]
 git-tree-sha1 = "ca0969166a028236229f63514992fc073799bb78"

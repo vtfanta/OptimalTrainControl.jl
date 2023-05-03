@@ -1,5 +1,5 @@
 # module Models
-@reexport using RailDynamics
+@reexport using OptimalTrainControl
 
 export albrecht_odefun!
 export play, controllaw, calculatecontrol!, φ, φ′, ψ, resistance, E

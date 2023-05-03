@@ -1,6 +1,6 @@
 using DifferentialEquations
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 
 function _solve_flat(vᵢ, mytrack, myres, V, V′ = V)

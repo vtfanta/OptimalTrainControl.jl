@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = RailDynamics
+CurrentModule = OptimalTrainControl
 ```
 
-# RailDynamics
+# OptimalTrainControl
 
-Documentation for [RailDynamics](https://github.com/vtfanta/RailDynamics.jl).
+Documentation for [OptimalTrainControl](https://github.com/vtfanta/OptimalTrainControl.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [RailDynamics]
+Modules = [OptimalTrainControl]
 ```

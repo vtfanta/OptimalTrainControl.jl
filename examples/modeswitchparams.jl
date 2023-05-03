@@ -2,7 +2,7 @@ import ForwardDiff: derivative
 using DifferentialEquations
 using NumericalIntegration
 using Plots
-using RailDynamics
+using OptimalTrainControl
 using Roots
 
 @enum ControlModes begin

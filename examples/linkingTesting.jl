@@ -1,4 +1,4 @@
-using RailDynamics
+using OptimalTrainControl
 using Plots
 
 # From https://doi.org/10.1109/9.867018

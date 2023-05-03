@@ -124,6 +124,7 @@ end
     T
     vᵢ = 1.0
     vf = 1.0
+    speedlimit = nothing
     states = nothing
     control = nothing
     switchingpoints = nothing

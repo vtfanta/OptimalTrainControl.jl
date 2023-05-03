@@ -17,9 +17,11 @@ prob = TrainProblem(;track, resistance = myresistance, T,
     umax = u_max, umin = u_min, ρ, vᵢ, vf)
 solve!(prob)
 chain, sol = prob.switchingpoints, prob.states 
-display(plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain), label = false, lw = 3))
+display(plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain), label = false, lw = 3, ylabel = "Speed (m/s)"))
 @show sol[1,end] - T
-display(plot!(twinx(), track; alpha = 0.5))
+display(plot!(twinx(), track; alpha = 0.5, xlabel = ""))
+vline!([16e3,20e3,24e3,25e3,28e3,31e3]; xlim = (15e3,35e3), color = :black, ls = :dash, label = false, size = (600,350))
+
 
 # flattrack = FlatTrack(20e3)
 # flatT = 1350 # seconds

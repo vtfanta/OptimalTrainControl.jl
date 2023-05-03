@@ -2,7 +2,18 @@
 
 export FlatTrack, HillyTrack
 export getgrade, inclinationforce, getgradientacceleration
-export start, finish
+export start, finish, setspeedlimits
+
+function setspeedlimits(Xs, limits, track)
+    @assert Xs[1] ≈ start(track) "Speed limits have to start at the start of the track"
+    @assert Base.length(limits) + 1 == Base.length(Xs) "Wrong dimensions. Xs define points of change of the speedlimit."
+
+    function ret(x)
+        idx = BasicInterpolators.findcell(x, Xs, Base.length(Xs))
+        return limits[idx]
+    end
+    return ret
+end
 
 # To allow broadcasting
 Base.broadcastable(t::Track) = Ref(t)

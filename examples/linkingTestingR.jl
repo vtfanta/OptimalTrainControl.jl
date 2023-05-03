@@ -25,7 +25,7 @@ vf = 2.0
 # chain, sol = RailDynamics.findchain(segs, modelparams)
 # plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain))
 
-prob = TrainProblem(track = track, T = 2500, umax = u_max, umin = u_min, ρ = ρ,
+prob = TrainProblem(track = track, T = 2900, umax = u_max, umin = u_min, ρ = ρ,
     vᵢ = vᵢ, vf = vf, resistance = myresistance)
 solve!(prob)
 

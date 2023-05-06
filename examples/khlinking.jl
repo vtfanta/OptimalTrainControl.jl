@@ -70,7 +70,7 @@ function solve_regular!(u0, xbegin, p0, seg2)
 end
 
 function try_link(x0, seg2, initmode)
-    p0 = ModelParams(nothing, nothing, nothing, nothing, initmode)
+    p0 = OldModelParams(nothing, nothing, nothing, nothing, initmode)
     sol = solve_regular!([Kₛ, 1.0], x0, p0, seg2)    
 
     K = sol[1,:]
@@ -125,7 +125,7 @@ x0 = segs[2].finish-1000
 targetseg = segs[4]
 startphase = :MaxP
 
-p0 = ModelParams(nothing, nothing, nothing, nothing, startphase)
+p0 = OldModelParams(nothing, nothing, nothing, nothing, startphase)
 sol = solve_regular!([Kₛ, 1.0], 15757.489720241621, p0, targetseg)
 
 try_link(x0, targetseg, startphase)

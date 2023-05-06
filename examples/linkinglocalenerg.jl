@@ -74,7 +74,7 @@ function solve_regular!(u0, span, p0, seg2)
 end
 
 function try_link(x0, seg2, initmode)
-    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
     sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
@@ -131,14 +131,14 @@ initmode = :MaxP
 targetseg = segs[4]
 xopt = find_zero(x -> try_link(x, targetseg, initmode), (segs[2].start, segs[2].finish-1))
 
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 sol = solve_regular!([0.0, V, 0.0], (xopt, targetseg.finish), p0, targetseg)
 plot(sol.t, sol[2,:])
 hline!([V])
 plot!(twinx(), steephilltrack; alpha = 0.5)
 
-# p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+# p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
 #     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 # xs = collect(segs[2].start:10:segs[2].finish-1)
 # vals = [local_energy([0.0,V,0.0], x, p0, targetseg) for x in xs]

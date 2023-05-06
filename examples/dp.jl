@@ -22,14 +22,14 @@ function twostateDP(dt, prob::TrainProblem)
     # terminal cost
     ϕ(x) = 1000000 * (abs2(x[2] - prob.vf) + abs2(x[1] - prob.T))
 
-    # mount of discretization steps in states
+    # amount of discretization steps in states
     stateK = 15
     xb = zeros(2, stateK)
     xb[1,:] = collect(range(0, prob.T+10; length = stateK))
     xb[2,:] = collect(range(0.1, 25; length = stateK))
 
     # amount of discretization steps in control
-    controlK = 15
+    controlK = 35
     ub = range(prob.umin(0), prob.umax(0); length = controlK)
 
     # Time discretization
@@ -152,7 +152,7 @@ end
 # t, x, u = hw5_fantavit()
 track = FlatTrack(5e3)
 prob = TrainProblem(;track, T = 1000, umax = v -> 0.125, umin = v -> -0.25)
-t, x, u = twostateDP(2, prob)
+t, x, u = twostateDP(20, prob)
 l = @layout [a;b;c]
 px1 = plot(t, x[1,:], label = "x1")
 px2 = plot(t, x[2,:], label = "x2")

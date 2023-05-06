@@ -46,7 +46,7 @@ b = 500
 c = 700
 
 ## Latest possible start to coast phase
-p = ModelParams(
+p = OldModelParams(
     (u,p,t) -> 0,
     (u,p,t) -> resistance(myresistance, u[2]),
     (u,p,t) -> getgradientacceleration(mytrack, t),

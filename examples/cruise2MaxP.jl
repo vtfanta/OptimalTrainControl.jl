@@ -100,7 +100,7 @@ b = segs[2].finish
 c = segs[3].start
 
 ## Latest possible start of MaxP
-p = ModelParams(
+p = OldModelParams(
     (u,p,t) -> 2. / max(5., u[2]),
     (u,p,t) -> resistance(myresistance, u[2]),
     (u,p,t) -> getgradientacceleration(steephilltrack, t),

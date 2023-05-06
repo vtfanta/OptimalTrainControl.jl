@@ -86,7 +86,7 @@ function solve_regular(u0, span, p0, seg2)
 end
 
 function try_link(x0, seg2, initmode)
-    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
     sol = solve_regular([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
@@ -145,7 +145,7 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 3/x)
 
 # plot(x, η, title = "η")
 # plot!(twinx(), steephilltrack; alpha = 0.5)
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, :Coast)
 sol = solve_regular([0.0,V,0.0], (segs[2].finish-1e3, segs[3].finish), p0, segs[3])
 

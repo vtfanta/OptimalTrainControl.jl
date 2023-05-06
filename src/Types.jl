@@ -2,7 +2,7 @@
 export Scenario, Vehicle, Tram, Train, Track, ControlLaw, Model, Resistance
 export DavisResistance
 export ControlModes
-export ModelParams, NewModelParams, SolverParams
+export OldModelParams, ModelParams, SolverParams
 export TrainProblem
 export Segment
 
@@ -39,14 +39,14 @@ struct AlbrechtModel <: Model
 end
 AlbrechtModel(r, ma, mi, m) = AlbrechtModel(r, ma, mi, m, 0.0)
 
-mutable struct ModelParams
+mutable struct OldModelParams
     u
     r
     g
     ρ
     currentmode
 end
-Base.broadcastable(p::ModelParams) = Ref(p)
+Base.broadcastable(p::OldModelParams) = Ref(p)
 
 mutable struct OptimalScenario <: Scenario
     model::Model
@@ -99,25 +99,25 @@ function Base.show(io::IO, s::Segment)
 end
 Base.broadcastable(s::Segment) = Ref(s)
 
-struct NewModelParams
-    umax
-    umin
-    resistance
-    ρ
+@with_kw struct ModelParams
+    umax = v -> 3 / max(5, v)
+    umin = v -> -3 / max(5, v)
+    resistance = DavisResistance(1e-2, 0, 1.5e-5)
+    ρ = 0
     track
-    V
-    vᵢ
-    vf
+    V = 10
+    vᵢ = 1.0
+    vf = 1.0
 end
 
 mutable struct SolverParams
-    modelparams::NewModelParams
+    modelparams::ModelParams
     currentmode
 end
 
 @with_kw mutable struct TrainProblem
-    umax = v -> 1 / max(5, v)
-    umin = v -> -1 / max(5, v)
+    umax = v -> 3 / max(5, v)
+    umin = v -> -3 / max(5, v)
     resistance = DavisResistance(1e-2, 0, 1.5e-5)
     ρ = 0
     track

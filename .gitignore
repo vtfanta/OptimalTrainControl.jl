@@ -4,3 +4,5 @@
 /Manifest.toml
 /docs/build/
 /test/*.csv
+.vscode/
+examples/figures/

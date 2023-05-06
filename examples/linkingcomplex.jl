@@ -89,7 +89,7 @@ function solve_regular!(u0, span, p0, seg2, shouldswitch = true)
 end
 
 function try_link(x0, seg2, initmode, across = false, vinit = V)
-    p0 = ModelParams((u,p,x) -> mycontrol(u,p,x), (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = OldModelParams((u,p,x) -> mycontrol(u,p,x), (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 
     # Link first segment to final segment
@@ -188,7 +188,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
 
         xopt = find_zero(x -> try_link(x, seg2, nudge), domain; xatol = 1e-3)
 
-        p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        p = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
 
         if seg1.mode == :HoldP
@@ -231,7 +231,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
 
         # xopt = find_zero(x -> try_link(x, seg1, nudge), domain; xatol = 1e-3)
 
-        # p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        # p = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         # (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
 
         # if seg2.mode == :HoldP
@@ -247,7 +247,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
 
         nudge = vᵢ < V ? :MaxP : :Coast
         u0 = [0.0, vᵢ, 1.0]
-        p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        p = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
         sol, points = solve_regular!(u0, (start(track), seg2.finish), p, seg2, false)
         if sol[2,end] ≤ 0.1 || sol.retcode == ReturnCode.Success
@@ -278,7 +278,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
 
         xopt = find_zero(x -> try_link(x, seg2, nudge), domain; xatol = 1e-3)
 
-        p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        p = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
 
         if seg1.mode == :HoldP
@@ -300,7 +300,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
     elseif isinf(seg1.start) && isinf(seg2.finish) # link initial to final segment
 
         nudge = vᵢ < V ? :MaxP : :Coast
-        powerp = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        powerp = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
         powersol, _ = solve_regular!([0.0, vᵢ, 1.0], (start(track), finish(track)), 
             powerp, seg2, false)
@@ -311,7 +311,7 @@ function link(seg1, seg2, track, u, res::DavisResistance, ρ, V)
         u0 = [powersol(switchingpoint)[1], powersol(switchingpoint)[2], 0.0]
         span = (switchingpoint, finish(track))
         nudge = :Coast
-        p = ModelParams(u, (u, _, _) -> resistance(res, u[2]),
+        p = OldModelParams(u, (u, _, _) -> resistance(res, u[2]),
         (_, _, x) -> getgradientacceleration(track, x), ρ, nudge)
         brakesol, pts = solve_regular!(u0, span, p, seg2)
         

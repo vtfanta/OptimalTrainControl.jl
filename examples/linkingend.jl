@@ -73,7 +73,7 @@ function solve_regular!(u0, span, p0, seg2)
 end
 
 function try_link(x0, seg2, initmode)
-    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
 
     # Link final segment
@@ -143,7 +143,7 @@ segs = getmildsegments(steephilltrack, V, myresistance, x -> 3/x)
 startingmode = :Coast
 # xopt = find_zero(x -> try_link(x, segs[4], startingmode), (segs[2].start, segs[2].finish-1))
 
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 
 vf = 1.0

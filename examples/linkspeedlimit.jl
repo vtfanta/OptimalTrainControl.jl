@@ -89,7 +89,7 @@ end
 
 function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
     if linkmode == :normal
-        p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+        p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
         (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
         sol = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
 
@@ -115,7 +115,7 @@ function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
             end
         end
     elseif linkmode == :speedlimit
-        p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+        p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
         (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
         sol = solve_regular!([0.0, V, 0.0], (start, seg2.finish), p0, seg2, x0)
 
@@ -182,17 +182,17 @@ startingmode = :MaxP
 targetseg = segs[3]
 
 xopt = find_zero(x -> try_link(x, targetseg, startingmode), (segs[2].start, segs[2].finish-1))
-p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
 if maximum(sol[2,:]) ≈ speedlimit
     println("CONDITION!")
     Δη = find_zero(η -> try_link(η, targetseg, startingmode, :speedlimit, xopt), (-1, 1))
-    p0 = ModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
+    p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
     sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg, Δη)
 end
 
-plot(sol.t, sol[3,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
+plot(sol.t, sol[2,:]; color = [e ≥ 0 ? :green : :grey for e in sol[3,:]], lw = 3, label = false)
 plot!(twinx(), steephilltrack; alpha = 0.5, label = false)
 hline!([speedlimit]; label = false)

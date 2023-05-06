@@ -96,7 +96,7 @@ function __solve_flat(vᵢ, mytrack, myres, V, V′ = V)
         end
     end
 
-    p = ModelParams(mycontrol, (s, p, x) -> resistance(myres, s[2]), 
+    p = OldModelParams(mycontrol, (s, p, x) -> resistance(myres, s[2]), 
         (s, p, x) -> 0, 0.5, :MaxP)
 
     s₀ = [0.0, vᵢ]

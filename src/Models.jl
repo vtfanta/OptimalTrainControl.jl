@@ -14,7 +14,7 @@ function albrecht_odefun!(du, u, p, t)
     du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
 end
 
-function getmildsegments(params::NewModelParams)
+function getmildsegments(params::ModelParams)
     @unpack track, ρ, V, umax = params
     res = params.resistance
 
@@ -56,7 +56,7 @@ function getmildsegments(params::NewModelParams)
 end
 
 function getmildsegments(track, V, res, umax, ρ = 0)
-    @warn "This version is deprecated. Use `getmildsegments(::NewModelParams)` instead."
+    @warn "This version is deprecated. Use `getmildsegments(::ModelParams)` instead."
     if isa(track, FlatTrack)
         midpoints = [(start(track) + finish(track)) / 2]
         gs = [0]

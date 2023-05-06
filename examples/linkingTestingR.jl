@@ -15,7 +15,7 @@ u_min(v) = -0.25
 vᵢ = 2.0
 vf = 2.0
 
-# modelparams = OptimalTrainControl.NewModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
+# modelparams = OptimalTrainControl.ModelParams(u_max, u_min, myresistance, ρ, track, V, vᵢ, vf)
 # segs = OptimalTrainControl.getmildsegments(modelparams)
 # l = OptimalTrainControl.link(segs[3],segs[4],modelparams)
 # println(l[2])

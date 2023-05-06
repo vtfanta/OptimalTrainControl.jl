@@ -41,10 +41,11 @@ function solve!(prob::TrainProblem; atol = 5)
     end
 
     function time_constraint(V)
-        params = NewModelParams(umax, umin, resistance, ρ, track, V, vᵢ, vf)
+        params = ModelParams(umax, umin, resistance, ρ, track, V, vᵢ, vf)
         segs = getmildsegments(params)
 
         _, sol = findchain(segs, params)
+        @show V, sol[1,end] - T
         return sol[1,end] - T
     end
 
@@ -52,15 +53,15 @@ function solve!(prob::TrainProblem; atol = 5)
     spanV = (OptimalTrainControl.length(track) / T / 2, OptimalTrainControl.length(track) / T * 2)
 
     Vopt = nothing
-    # try
+    try
         Vopt = find_zero(time_constraint, spanV, Bisection(); atol)
-    # catch e
-        # printstyled("The problem is likely infeasible. Try higher time of journey.";
-            # color = :red)
-        # return 
-    # end
+    catch e
+        printstyled("The problem is likely infeasible. Try higher time of journey.\r\n";
+            color = :red)
+        return 
+    end
 
-    params = NewModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf)
+    params = ModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf)
     chain, sol = findchain(getmildsegments(params), params)
     prob.states = sol
     prob.switchingpoints = chain
@@ -156,7 +157,7 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
     return sol, switching_points
 end
 
-function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = false, vinit = modelparams.V)
+function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false, vinit = modelparams.V)
     p0 = SolverParams(modelparams, initmode)
 
     segs = getmildsegments(modelparams)
@@ -222,7 +223,7 @@ function try_link(x0, seg2, initmode, modelparams::NewModelParams,  across = fal
     end
 end
 
-function link(seg1::Segment, seg2::Segment, modelparams::NewModelParams)
+function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
     V = modelparams.V
     res = modelparams.resistance
     ρ = modelparams.ρ
@@ -341,7 +342,6 @@ function link(seg1::Segment, seg2::Segment, modelparams::NewModelParams)
         powerp = SolverParams(modelparams, nudge)
         powersol, _ = solve_regular!([0.0, vᵢ, 1.0], (start(track), finish(track)), 
             powerp, seg2, false)
-
         switchingpoint = find_zero(x -> try_link(x, seg2, :Coast,modelparams, 
             true, powersol(x)[2]), (start(track), finish(track)))
        
@@ -384,7 +384,7 @@ function isinseg(x, seg)
     return seg.start ≤ x ≤ seg.finish
 end
 
-function findchain(segs, modelparams::NewModelParams)
+function findchain(segs, modelparams::ModelParams)
     @show modelparams.V
     
 
@@ -468,7 +468,7 @@ function findchain(segs, modelparams::NewModelParams)
     end
 
     candidatechains = filter(c -> c[1][1] == start(track) && isnothing(c[end][2]), chains)
-    # println(candidatechains)
+    println(candidatechains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain

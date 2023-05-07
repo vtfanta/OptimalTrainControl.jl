@@ -1090,7 +1090,7 @@ version = "1.7.4"
 
 [[deps.OptimalTrainControl]]
 deps = ["BasicInterpolators", "CSV", "DataFrames", "DifferentialEquations", "ForwardDiff", "Parameters", "RecipesBase", "Reexport", "Revise", "Roots", "Tables"]
-path = ".."
+path = "C:\\Users\\vitfa\\.julia\\dev\\OptimalTrainControl"
 uuid = "def5d3d9-a34b-4daf-bc22-0581843f8b2c"
 version = "0.1.0"
 

@@ -108,6 +108,7 @@ Base.broadcastable(s::Segment) = Ref(s)
     V = 10
     vᵢ = 1.0
     vf = 1.0
+    speedlimit = nothing
 end
 
 mutable struct SolverParams
@@ -128,4 +129,9 @@ end
     states = nothing
     control = nothing
     switchingpoints = nothing
+end
+
+function ModelParams(prob::TrainProblem, V)
+    ModelParams(prob.umax, prob.umin, prob.resistance, prob.ρ, prob.track, 
+        V, prob.vᵢ, prob.vf)
 end

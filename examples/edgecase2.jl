@@ -7,11 +7,9 @@ trackY = [0,0,60,65]
 
 track = HillyTrack(trackX, trackY)
 
-params = ModelParams(track = track)
+params = ModelParams(track = track, V = 9, vᵢ = 12.1)
 
-segs = OptimalTrainControl.getmildsegments(params)
-
-OptimalTrainControl.try_link(segs[3].start,segs[4], :Coast, params)
-
-l = OptimalTrainControl.link(segs[3],segs[4],params)
-l[2]
+chain, sol = OptimalTrainControl.link(segs[1], segs[2],params)
+# prob = TrainProblem(;track, T = 700, vᵢ = 9.71, vf = 12)
+# chain, sol = solve!(prob)
+# plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain))

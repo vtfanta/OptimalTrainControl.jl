@@ -97,7 +97,8 @@ function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
         η = sol[3,:]
         x = sol.t
 
-        # @show x[end]
+        @show x[end]
+        display(plot(x, v))
 
         if maximum(v) > speedlimit
             return Inf
@@ -173,7 +174,7 @@ steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
 myresistance = DavisResistance(1e-2,0,1.5e-5)
 
 V = 25.0
-speedlimit = 25.2
+speedlimit = 25.5
 segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
 @show segs
 ρ = 0
@@ -187,7 +188,7 @@ p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]),
 sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
 if maximum(sol[2,:]) ≈ speedlimit
     println("CONDITION!")
-    Δη = find_zero(η -> try_link(η, targetseg, startingmode, :speedlimit, xopt), (-1, 1))
+    Δη = find_zero(η -> try_link(η, targetseg, startingmode, :speedlimit, xopt), (0, 5))
     p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
     sol = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg, Δη)

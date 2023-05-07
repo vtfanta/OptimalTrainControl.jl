@@ -41,7 +41,7 @@ function solve!(prob::TrainProblem; atol = 5)
     end
 
     function time_constraint(V)
-        params = ModelParams(umax, umin, resistance, ρ, track, V, vᵢ, vf)
+        params = ModelParams(umax, umin, resistance, ρ, track, V, vᵢ, vf, prob.speedlimit)
         segs = getmildsegments(params)
 
         _, sol = findchain(segs, params)
@@ -53,15 +53,17 @@ function solve!(prob::TrainProblem; atol = 5)
     spanV = (OptimalTrainControl.length(track) / T / 2, OptimalTrainControl.length(track) / T * 2)
 
     Vopt = nothing
-    try
+    if sign(time_constraint(spanV[1])) != sign(time_constraint(spanV[2]))
         Vopt = find_zero(time_constraint, spanV, Bisection(); atol)
-    catch e
+        # Vopt = find_zero(time_constraint, OptimalTrainControl.length(track)/T; atol)
+    else
         printstyled("The problem is likely infeasible. Try higher time of journey.\r\n";
             color = :red)
-        return 
+        # throw(e)
+        # return 
     end
 
-    params = ModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf)
+    params = ModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf, prob.speedlimit)
     chain, sol = findchain(getmildsegments(params), params)
     prob.states = sol
     prob.switchingpoints = chain
@@ -98,9 +100,8 @@ function odefun!(du, u, p::SolverParams, x)
     end
 end
 
-function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch = true)
-    ρ = p.modelparams.ρ
-    track = p.modelparams.track
+function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch = true, Δη = nothing)
+    @unpack ρ, track, speedlimit = p.modelparams
 
     condition_lowspeed(u, t, int) = u[2] - 1e-2
     affect_lowspeed!(int) = terminate!(int)
@@ -142,6 +143,7 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
             end
         end
     end
+    
 
     switching_points = []
 
@@ -150,6 +152,7 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
     tstops = [r[:Distance] for r in eachrow(track.waypoints)]
 
     cb_modeswitch = VectorContinuousCallback(condition_modeswitch, affect_modeswitch!, affect_neg_modeswitch!, 3)
+
     cbS = CallbackSet(cb_modeswitch, cb_lowspeed)
     
     prob = ODEProblem(odefun!, u0, span, p)
@@ -157,8 +160,9 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
     return sol, switching_points
 end
 
-function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false, vinit = modelparams.V)
+function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false, vinit = modelparams.V, Δη = nothing)
     p0 = SolverParams(modelparams, initmode)
+    @unpack speedlimit = modelparams
 
     segs = getmildsegments(modelparams)
     seg1idx = findfirst([seg.start ≤ x0 ≤ seg.finish for seg in segs])
@@ -181,8 +185,8 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
     # Link first segment
     if isinf(seg2.start)
         u0 = seg2.mode == :HoldP ? [0.0, seg2.holdspeed, 0.0] : [0.0, seg2.holdspeed, modelparams.ρ - 1]
-        sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2, false)    
-        if sol.retcode == ReturnCode.Terminated # came to stop before finish
+        sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
+        if sol.retcode == ReturnCode.Terminated # came to stop before finish 
             return -Inf
         elseif sol.retcode == ReturnCode.Success
             return sol[2,end] - modelparams.vᵢ
@@ -193,7 +197,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
     if isinf(seg2.finish)
         u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
         sol, _ = solve_regular!(u0, (x0, seg2.start), p0, seg2)
-        if sol.retcode == ReturnCode.Terminated # came to stop before finish
+        if sol.retcode == ReturnCode.Terminated # came to stop before finish 
             return -Inf
         elseif sol.retcode == ReturnCode.Success
             return sol[2,end] - modelparams.vf
@@ -202,6 +206,22 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
 
     # Link inner segments
     u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
+
+    if !isnothing(Δη) # find jump in η
+        sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2, true, Δη)
+        if sol.t[end] ≈ seg2.finish
+            return sign(sol[3,end]) * Inf
+        elseif sol[2,end] ≤ 0.1
+            return -Inf
+        else
+            if seg2.mode == :HoldP
+                return sol[3,end]
+            else # seg2.mode == :HoldR
+                return sol[3,end] - (modelparams.ρ - 1)
+            end
+        end
+    end
+
     sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
 
     v = sol[2,:]
@@ -230,6 +250,7 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
     track = modelparams.track
     vᵢ = modelparams.vᵢ
     vf = modelparams.vf
+    speedlimit = modelparams.speedlimit
 
     if ρ > 0
         W = find_zero(W -> ρ * ψ(res, W) - ψ(res, V), (V, Inf))
@@ -289,9 +310,36 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         end
         
         nudge = vᵢ < V ? :MaxP : :Coast
+        # domain = (seg2.start, seg2.finish)
+
+        # valleft = try_link(domain[1], seg1, nudge, modelparams)
+        # valright = try_link(domain[2], seg1, nudge, modelparams)
+
+        # if sign(valleft) == sign(valright)
+        #     return nothing
+        # end
+
+        # xopt = find_zero(x -> try_link(x, seg1, nudge, modelparams), domain)
+
+        # if seg2.mode == :HoldP
+        #     u0 = [0, seg2.holdspeed, 0]
+        # else # seg2.mode == :HoldR
+        #     u0 = [0, seg2.holdspeed, ρ - 1]
+        # end
+
+        # p = SolverParams(modelparams, nudge)
+        # sol, points = solve_regular!(u0, (xopt, seg1.finish), p, seg1)
+
+        # if sol[2,end] ≤ 0.1 
+        #     return nothing
+        # else
+        #     return points, sol
+        # end
+
         u0 = [0.0, vᵢ, 1.0]
         p = SolverParams(modelparams, nudge)
         sol, points = solve_regular!(u0, (start(track), seg2.finish), p, seg2, false)
+
         if sol[2,end] ≤ 0.1 || sol.retcode == ReturnCode.Success
             return nothing
         else
@@ -331,6 +379,7 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         sol, points = solve_regular!(u0, (xopt, seg2.start), p, seg2)
         pushfirst!(points, (xopt, nudge))
         push!(points, (sol.t[end], nothing))
+
         if sol[2,end] ≤ 0.1
             return nothing
         else
@@ -366,6 +415,15 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         push!(retpoints, (finish(track), nothing))
         return retsol, retpoints
     end
+end
+
+function checkspeedlimit(sol, speedlimit)
+    for k in eachindex(sol.t)
+        if sol[2,k] > speedlimit(sol.t[k])
+            return false
+        end
+    end
+    return true
 end
 
 function chain2segsidx(chain, segs)

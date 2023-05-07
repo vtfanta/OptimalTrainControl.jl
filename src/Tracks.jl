@@ -2,17 +2,23 @@
 
 export FlatTrack, HillyTrack
 export getgrade, inclinationforce, getgradientacceleration
-export start, finish, setspeedlimits
+export start, finish, setspeedlimits!
 
-function setspeedlimits(Xs, limits, track)
-    @assert Xs[1] ≈ start(track) "Speed limits have to start at the start of the track"
-    @assert Base.length(limits) + 1 == Base.length(Xs) "Wrong dimensions. Xs define points of change of the speedlimit."
+function setspeedlimits!(prob::TrainProblem, Xs, limits)
+    @unpack track = prob
+    @assert Base.length(limits) == Base.length(Xs) + 1 "Wrong dimensions. Xs define points of change of the speedlimit."
+    
+    @assert issorted(Xs)
+    # @assert Xs[1] > start(track) && Xs[end] < finish(track)
 
-    function ret(x)
+    pushfirst!(Xs, start(track))
+    push!(Xs, finish(track))
+
+    function speedlim(x)
         idx = BasicInterpolators.findcell(x, Xs, Base.length(Xs))
         return limits[idx]
     end
-    return ret
+    prob.speedlimit = speedlim
 end
 
 # To allow broadcasting

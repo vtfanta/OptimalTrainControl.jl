@@ -10,7 +10,7 @@ T = 3200.0
 ρ = 0.
 u_max(v) = 0.125
 u_min(v) = -0.25
-vᵢ = 2.0
+vᵢ = 7.0
 vf = 2.0
 
 prob = TrainProblem(;track, resistance = myresistance, T, 

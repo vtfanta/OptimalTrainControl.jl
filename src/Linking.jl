@@ -100,7 +100,7 @@ function odefun!(du, u, p::SolverParams, x)
     end
 end
 
-function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch = true, Δη = nothing)
+function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch = true)
     @unpack ρ, track, speedlimit = p.modelparams
 
     condition_lowspeed(u, t, int) = u[2] - 1e-2
@@ -160,7 +160,7 @@ function solve_regular!(u0, span, p::SolverParams, seg2::Segment, shouldswitch =
     return sol, switching_points
 end
 
-function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false, vinit = modelparams.V, Δη = nothing)
+function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false, vinit = modelparams.V)
     p0 = SolverParams(modelparams, initmode)
     @unpack speedlimit = modelparams
 
@@ -207,22 +207,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
     # Link inner segments
     u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
 
-    if !isnothing(Δη) # find jump in η
-        sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2, true, Δη)
-        if sol.t[end] ≈ seg2.finish
-            return sign(sol[3,end]) * Inf
-        elseif sol[2,end] ≤ 0.1
-            return -Inf
-        else
-            if seg2.mode == :HoldP
-                return sol[3,end]
-            else # seg2.mode == :HoldR
-                return sol[3,end] - (modelparams.ρ - 1)
-            end
-        end
-    end
-
-    sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
+    sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)   
 
     v = sol[2,:]
     η = sol[3,:]
@@ -297,6 +282,11 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         sol, points = solve_regular!(u0, (xopt, seg2.finish), p, seg2)
         pushfirst!(points, (xopt, nudge))
         push!(points, (sol.t[end],seg2.mode))
+
+        # check for speedlimits
+        if !checkspeedlimit(sol, speedlimit)
+            # TODO
+        end
 
         if sol[2,end] ≤ 0.1
             return nothing

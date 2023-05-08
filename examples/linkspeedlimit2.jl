@@ -194,7 +194,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
 end
 
 # From https://doi.org/10.1109/9.867018
-trackX = [0,16e3,20e3,30e3]
+trackX = [0,10e3,14e3,25e3]
 trackY = [0,0,400,400]/9.81
 track = HillyTrack(trackX, trackY)
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)

@@ -21,11 +21,11 @@ end
 
 function mycontrol(u, p, x)
     if p.currentmode == :MaxP
-        1. / max(u[2],5)
+        u_max(u[2])
     elseif p.currentmode == :Coast
         0
     elseif p.currentmode == :MaxB
-        - 3. / u[2]
+        u_min(u[2])
     end
 end
 
@@ -97,8 +97,8 @@ function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
         η = sol[3,:]
         x = sol.t
 
-        @show x[end]
-        display(plot(x, v))
+        @show x0
+        # display(plot(x, v))
 
         if maximum(v) > speedlimit
             return Inf
@@ -149,35 +149,34 @@ f(xprev, xnow, yprev, γ) = tan(asin(γ / -9.81))*(xnow - xprev) + yprev
     return ret
 end
 
-function local_energy(u0, x0, p0, seg2)
-    sol = solve_regular!(u0, (x0, seg2.finish), p0, seg2)
-    v = sol[2,:]
-    x = sol.t
-    J = integrate(x, E.(myresistance, V, v) .- E(myresistance, V, V))
-end
+# trackX = [0,2e3,2.5e3,5e3]
+# trackY = [0,0,5,5]
 
-function speedlimits(x)
-    if x ≤ 1000
-        30
-    elseif 1000 < x ≤ 4000
-        25.5
-    else
-        20
-    end
-end
+# steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
 
-trackX = [0,2e3,2.5e3,5e3]
-trackY = [0,0,5,5]
+# myresistance = DavisResistance(1e-2,0,1.5e-5)
 
-steephilltrack = HillyTrack(trackX, Vector{Float64}(trackY))
+# V = 25.0
+# speedlimit = 25.5
+# segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
+# @show segs
+# ρ = 0
 
-myresistance = DavisResistance(1e-2,0,1.5e-5)
+trackX = [0,10e3,14e3,25e3]
+trackY = [0,0,400,400]/9.81
+steephilltrack = HillyTrack(trackX, trackY)
+myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
+V = 9.625
+ρ = 0.
+u_max(v) = 0.125
+u_min(v) = -0.25
+vᵢ = 2.0
+vf = 2.0
 
-V = 25.0
-speedlimit = 25.5
-segs = getmildsegments(steephilltrack, V, myresistance, x -> 1/max(x,5))
+speedlimit = 10.2
+
+segs = getmildsegments(steephilltrack, V, myresistance, u_max)
 @show segs
-ρ = 0
 
 startingmode = :MaxP
 targetseg = segs[3]

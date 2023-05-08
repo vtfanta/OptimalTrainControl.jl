@@ -284,7 +284,7 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         push!(points, (sol.t[end],seg2.mode))
 
         # check for speedlimits
-        if !checkspeedlimit(sol, speedlimit)
+        if !isnothing(speedlimit) && !checkspeedlimit(sol, speedlimit)
             # TODO
         end
 

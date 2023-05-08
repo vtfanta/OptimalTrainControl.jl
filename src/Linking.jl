@@ -285,7 +285,12 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
 
         # check for speedlimits
         if !isnothing(speedlimit) && !checkspeedlimit(sol, speedlimit)
-            # TODO
+            ret = linkunderspeedlimit(seg1, seg2, modelparams)
+            if isnothing(ret)
+                return nothing
+            end
+            sol, points = ret
+            return sol, points
         end
 
         if sol[2,end] ≤ 0.1

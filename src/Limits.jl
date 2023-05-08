@@ -170,6 +170,13 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
     startingmode = nudge
     targetseg = seg2
 
+    valleft = try_link(domain[1], targetseg, startingmode)
+    valright = try_link(domain[2], targetseg, startingmode)
+
+    if sign(valleft) == sign(valright)
+        return nothing
+    end
+
     xopt = find_zero(x -> try_link(x, targetseg, startingmode), domain)
     p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
         (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)

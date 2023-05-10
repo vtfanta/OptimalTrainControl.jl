@@ -1,6 +1,6 @@
 @reexport using OptimalTrainControl
 
-export linkunderspeedlimit
+export linkunderspeedlimit, segmentize
 
 function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelParams)
     function odefun!(du, u, p, x)
@@ -191,4 +191,102 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
     pushfirst!(points, (xopt, nudge))
     push!(points, (sol.t[end], seg2.mode))
     return sol, points
+end
+
+function segmentize(params::ModelParams)
+    @unpack V, speedlimit, speedlimitX, speedlimitY, ρ, resistance, track = params
+
+    if ρ > 0
+		W = find_zero(W -> ψ(resistance, W) - ψ(resistance, V) / ρ, V)
+        # @show W
+    end
+
+    regsegs = getmildsegments(params)
+    if isnothing(speedlimit)
+        return regsegs
+    end
+
+    starts = speedlimitX[1:end-1]
+    ends = speedlimitX[2:end]
+    midpoints = (ends .+ starts) ./ 2
+
+    additionalsegs = []
+    for (idx, mid) in enumerate(midpoints)
+        current_regseg_idx = findfirst(isinseg.(mid, regsegs))
+        if isnothing(current_regseg_idx)
+            continue
+        else
+            current_regseg = regsegs[current_regseg_idx]
+            limspeed = speedlimit(mid)
+            if current_regseg.mode == :HoldP && limspeed < V
+                push!(additionalsegs, Segment(max(starts[idx], current_regseg.start),
+                min(ends[idx], current_regseg.finish), :HoldPlim, limspeed))
+            elseif current_regseg.mode == :HoldR && limspeed < W
+                push!(additionalsegs, Segment(max(starts[idx], current_regseg.start),
+                    min(ends[idx], current_regseg.finish), :HoldRlim, limspeed))
+            end
+        end
+    end
+
+    for k in 1:(Base.length(additionalsegs) - 1) # combining compatible adjacent segments
+        if additionalsegs[k].finish == additionalsegs[k+1].start && 
+            additionalsegs[k].mode == additionalsegs[k+1].mode &&
+            additionalsegs[k].holdspeed == additionalsegs[k+1].holdspeed
+
+            additionalsegs[k].finish = additionalsegs[k+1].finish
+            deleteat!(additionalsegs, k+1)
+            if k+1 == Base.length(additionalsegs)
+                break
+            end
+        end
+    end
+    # println(additionalsegs)
+
+    ret = []
+    addidx = 1
+    for regseg in regsegs
+        if isinf(regseg.start) # initial segment
+            push!(ret, regseg)
+            continue
+        elseif isinf(regseg.finish) # final segment
+            push!(ret, regseg)
+            break
+        end
+
+        uptoidx = findlast(addseg -> isinseg(addseg.finish, regseg), additionalsegs[addidx:end])
+
+        if isnothing(uptoidx) # no speedlimiting segments over this regseg
+            push!(ret, regseg)
+            continue
+        end
+
+        current_x = regseg.start
+        for k in addidx:uptoidx
+            addseg = additionalsegs[k]
+            if addseg.start > current_x
+                push!(ret, Segment(current_x, addseg.start, regseg.mode, regseg.holdspeed))
+                current_x = addseg.start
+            end
+
+            push!(ret, addseg)
+            current_x = addseg.finish
+        end
+
+        if current_x < regseg.finish
+            push!(ret, Segment(current_x, regseg.finish, regseg.mode, regseg.holdspeed))
+        end
+
+        addidx = uptoidx + 1
+    end
+
+    # test segments are not overlapping
+    cur = ret[1].start
+    for seg in ret
+        if cur ≥ seg.finish
+            error()
+        end
+        cur = seg.finish
+    end
+
+    return ret
 end

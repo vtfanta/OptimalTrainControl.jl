@@ -41,7 +41,7 @@ function solve!(prob::TrainProblem; atol = 5)
     end
 
     function time_constraint(V)
-        params = ModelParams(umax, umin, resistance, ρ, track, V, vᵢ, vf, prob.speedlimit)
+        params = ModelParams(;umax, umin, resistance, ρ, track, V, vᵢ, vf, speedlimit = prob.speedlimit)
         segs = getmildsegments(params)
 
         _, sol = findchain(segs, params)
@@ -63,7 +63,7 @@ function solve!(prob::TrainProblem; atol = 5)
         # return 
     end
 
-    params = ModelParams(umax, umin, resistance, ρ, track, Vopt, vᵢ, vf, prob.speedlimit)
+    params = ModelParams(;umax, umin, resistance, ρ, track, V = Vopt, vᵢ, vf, speedlimit = prob.speedlimit)
     chain, sol = findchain(getmildsegments(params), params)
     prob.states = sol
     prob.switchingpoints = chain

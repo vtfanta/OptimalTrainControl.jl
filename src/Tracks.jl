@@ -11,14 +11,35 @@ function setspeedlimits!(prob::TrainProblem, Xs, limits)
     @assert issorted(Xs)
     # @assert Xs[1] > start(track) && Xs[end] < finish(track)
 
-    pushfirst!(Xs, start(track))
-    push!(Xs, finish(track))
+    Xs[1] ≈ start(track) ? nothing : pushfirst!(Xs, start(track))
+    Xs[end] ≈ finish(track) ? nothing : push!(Xs, finish(track))
 
     function speedlim(x)
         idx = BasicInterpolators.findcell(x, Xs, Base.length(Xs))
         return limits[idx]
     end
     prob.speedlimit = speedlim
+    prob.speedlimitX = Xs
+    prob.speedlimitY = limits
+end
+
+function setspeedlimits!(params::ModelParams, Xs, limits)
+    @unpack track = params
+    @assert Base.length(limits) == Base.length(Xs) + 1 "Wrong dimensions. Xs define points of change of the speedlimit."
+    
+    @assert issorted(Xs)
+    # @assert Xs[1] > start(track) && Xs[end] < finish(track)
+
+    Xs[1] ≈ start(track) ? nothing : pushfirst!(Xs, start(track))
+    Xs[end] ≈ finish(track) ? nothing : push!(Xs, finish(track))
+
+    function speedlim(x)
+        idx = BasicInterpolators.findcell(x, Xs, Base.length(Xs))
+        return limits[idx]
+    end
+    params.speedlimit = speedlim
+    params.speedlimitX = Xs
+    params.speedlimitY = limits
 end
 
 # To allow broadcasting

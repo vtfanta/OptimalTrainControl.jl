@@ -14,7 +14,23 @@ abstract type Vehicle end
 abstract type Train <: Vehicle end
 abstract type Tram <: Vehicle end
 
-ControlModes = Set([:MaxP, :HoldP, :HoldR, :Coast, :MaxB])
+ControlModes = Set([:MaxP, :HoldP, :HoldR, :Coast, :MaxB, :HoldPlim, :HoldRlim])
+
+function modecolor(mode)
+    if mode == :MaxP
+        :green
+    elseif mode == :HoldP
+        :blue
+    elseif mode == :HoldR
+        :light_red
+    elseif mode == :Coast
+        :grey
+    elseif mode == :MaxB
+        :red
+    elseif mode == :HoldPlim || mode == :HoldRlim
+        :yellow
+    end
+end
 
 """
 Empirical formula originally calculated for freight cars. The resistance (in N/kg) is given by
@@ -93,13 +109,13 @@ Segment(s,f,m) = Segment(s,f,m,nothing)
 function Base.show(io::IO, s::Segment) 
     show(io, s.start)
     print(io, " ~ ")
-    printstyled(io, s.mode; color = s.mode == :HoldP ? :blue : :magenta)
+    printstyled(io, s.mode; color = modecolor(s.mode))
     print(io, " ~ ")
     show(io, s.finish)
 end
 Base.broadcastable(s::Segment) = Ref(s)
 
-@with_kw struct ModelParams
+@with_kw mutable struct ModelParams
     umax = v -> 3 / max(5, v)
     umin = v -> -3 / max(5, v)
     resistance = DavisResistance(1e-2, 0, 1.5e-5)
@@ -109,6 +125,8 @@ Base.broadcastable(s::Segment) = Ref(s)
     vᵢ = 1.0
     vf = 1.0
     speedlimit = nothing
+    speedlimitX = nothing
+    speedlimitY = nothing
 end
 
 mutable struct SolverParams
@@ -126,6 +144,8 @@ end
     vᵢ = 1.0
     vf = 1.0
     speedlimit = nothing
+    speedlimitX = nothing
+    speedlimitY = nothing
     states = nothing
     control = nothing
     switchingpoints = nothing

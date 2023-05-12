@@ -14,6 +14,32 @@ function albrecht_odefun!(du, u, p, t)
     du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
 end
 
+function calculatecontrol!(prob::TrainProblem, x, v, points)
+    @unpack track, umax, umin = prob
+    u = zeros(size(x))
+
+    pointsx = [p[1] for p in points]
+    mode = nothing
+    val = nothing
+    for (idx,s) in enumerate(x)
+        if s in pointsx
+            mode = points[findfirst(s .== pointsx)][2]
+        end
+        if mode == :MaxP
+            val = umax(v[idx])
+        elseif mode == :HoldP || mode == :HoldR
+            val = resistance(prob.resistance, v[idx]) - getgradientacceleration(track, s)
+        elseif mode == :Coast
+            val = 0
+        elseif mode == :MaxB
+            val = umin(v[idx])
+        end
+        u[idx] = val
+    end
+    prob.control = u
+    return u
+end
+
 function getmildsegments(params::ModelParams)
     @unpack track, ρ, V, umax = params
     res = params.resistance

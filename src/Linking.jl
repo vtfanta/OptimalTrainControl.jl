@@ -41,7 +41,7 @@ function solve!(prob::TrainProblem; atol = 5)
     end
 
     function time_constraint(V)
-        params = ModelParams(;umax, umin, resistance, ρ, track, V, vᵢ, vf, speedlimit = prob.speedlimit)
+        params = ModelParams(;umax, umin, resistance, ρ, track, V, vᵢ, vf, speedlimit = prob.speedlimit, speedlimitX = prob.speedlimitX, speedlimitY = prob.speedlimitY)
         segs = getmildsegments(params)
 
         _, sol = findchain(segs, params)
@@ -63,7 +63,7 @@ function solve!(prob::TrainProblem; atol = 5)
         # return 
     end
 
-    params = ModelParams(;umax, umin, resistance, ρ, track, V = Vopt, vᵢ, vf, speedlimit = prob.speedlimit)
+    params = ModelParams(;umax, umin, resistance, ρ, track, V = Vopt, vᵢ, vf, speedlimit = prob.speedlimit, speedlimitX = prob.speedlimitX, speedlimitY = prob.speedlimitY)
     chain, sol = findchain(getmildsegments(params), params)
     prob.states = sol
     prob.switchingpoints = chain
@@ -184,7 +184,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
 
     # Link first segment
     if isinf(seg2.start)
-        u0 = seg2.mode == :HoldP ? [0.0, seg2.holdspeed, 0.0] : [0.0, seg2.holdspeed, modelparams.ρ - 1]
+        u0 = (seg2.mode == :HoldP || seg2.mode == :HoldPlim) ? [0.0, seg2.holdspeed, 0.0] : [0.0, seg2.holdspeed, modelparams.ρ - 1]
         sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
         if sol.retcode == ReturnCode.Terminated # came to stop before finish 
             return -Inf
@@ -195,7 +195,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
 
     # Link final segment
     if isinf(seg2.finish)
-        u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
+        u0 = (seg1.mode == :HoldP || seg1.mode == :HoldPlim) ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
         sol, _ = solve_regular!(u0, (x0, seg2.start), p0, seg2)
         if sol.retcode == ReturnCode.Terminated # came to stop before finish 
             return -Inf
@@ -205,7 +205,7 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
     end
 
     # Link inner segments
-    u0 = seg1.mode == :HoldP ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
+    u0 = (seg1.mode == :HoldP || seg1.mode == :HoldPlim) ? [0.0, seg1.holdspeed, 0.0] : [0.0, seg1.holdspeed, modelparams.ρ - 1]
 
     sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)   
 
@@ -218,10 +218,10 @@ function try_link(x0, seg2, initmode, modelparams::ModelParams,  across = false,
     elseif v[end] ≤ 0.1
         -Inf
     else
-        if seg2.mode == :HoldP
+        if seg2.mode == :HoldP || seg2.mode == :HoldPlim
             # v[end] - seg2.holdspeed
             η[end]
-        elseif seg2.mode == :HoldR
+        elseif seg2.mode == :HoldR || seg2.mode == :HoldRlim
             # v[end] - seg2.holdspeed
             η[end] - (modelparams.ρ - 1)
         end
@@ -248,12 +248,12 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
             error("Segment 1 has to precede segment 2.")
         end
 
-        if seg1.mode == :HoldP
+        if seg1.mode == :HoldP || seg1.mode == :HoldPlim
 
             domain = (seg1.start, seg1.finish - 1)
 
             nudge = getgradientacceleration(track, seg1.finish + 1) < 0 ? :MaxP : :Coast
-        else # seg1.mode == :HoldR
+        else # seg1.mode == :HoldR || seg1.mode == :HoldRlim
             domain = (seg1.start, seg1.finish + 1)
 
             currg = getgradientacceleration(track, seg1.finish - 1)
@@ -273,10 +273,10 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
 
         p = SolverParams(modelparams, nudge)
 
-        if seg1.mode == :HoldP
-            u0 = [0.0, V, 0.0]
-        elseif seg1.mode == :HoldR
-            u0 = [0.0, W, ρ - 1.0]
+        if seg1.mode == :HoldP || seg1.mode == :HoldPlim
+            u0 = [0.0, seg1.holdspeed, 0.0]
+        elseif seg1.mode == :HoldR || seg1.mode == :HoldRlim
+            u0 = [0.0, seg1.holdspeed, ρ - 1.0]
         end
 
         sol, points = solve_regular!(u0, (xopt, seg2.finish), p, seg2)
@@ -346,10 +346,10 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
             error("Final segment has no succeeding segment.")
         end
 
-        if seg1.mode == :HoldP
-            nudge = vf < V ? :Coast : :MaxP
-        elseif seg1.mode == :HoldR
-            nudge = vf < W ? :MaxB : :Coast
+        if seg1.mode == :HoldP || seg1.mode == :HoldPlim
+            nudge = vf < seg1.holdspeed ? :Coast : :MaxP
+        elseif seg1.mode == :HoldR || seg1.mode == :HoldRlim
+            nudge = vf < seg1.holdspeed ? :MaxB : :Coast
         end
 
         domain = (seg1.start, seg1.finish)
@@ -365,10 +365,10 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
 
         p = SolverParams(modelparams, nudge)
 
-        if seg1.mode == :HoldP
-            u0 = [0.0, V, 0.0]
-        elseif seg1.mode == :HoldR
-            u0 = [0.0, W, ρ - 1.0]
+        if seg1.mode == :HoldP || seg1.mode == :HoldPlim
+            u0 = [0.0, seg1.holdspeed, 0.0]
+        elseif seg1.mode == :HoldR || seg1.mode == :HoldRlim
+            u0 = [0.0, seg1.holdspeed, ρ - 1.0]
         end
 
         sol, points = solve_regular!(u0, (xopt, seg2.start), p, seg2)
@@ -440,7 +440,6 @@ end
 function findchain(segs, modelparams::ModelParams)
     @show modelparams.V
     
-
     ρ = modelparams.ρ
     V = modelparams.V
     track = modelparams.track
@@ -525,7 +524,7 @@ function findchain(segs, modelparams::ModelParams)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain
-        segsequence = filter(!isnothing,[c[2] == :HoldP || c[2] == :HoldR ? findfirst(isinseg.(c[1], segs)) : nothing for c in chain[2:end-1]])
+        segsequence = filter(!isnothing,[c[2] == :HoldP || c[2] == :HoldR || c[2] == :HoldPlim || c[2] == :HoldRlim ? findfirst(isinseg.(c[1], segs)) : nothing for c in chain[2:end-1]])
         if isempty(segsequence)
             segsequence = [1, N]
         else

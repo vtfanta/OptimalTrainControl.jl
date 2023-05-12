@@ -21,8 +21,10 @@ vᵢ = 2.0
 vf = 2.0
 T = 2800
 
-# params = ModelParams(;track, resistance = myresistance, 
-#     V, vᵢ, vf, ρ, umax = u_max, umin = u_min, speedlimit = customlimit)
+params = ModelParams(;track, resistance = myresistance, 
+    V, vᵢ, vf, ρ, umax = u_max, umin = u_min)
+setspeedlimits!(params, [11e3], [10, 20])
+segs = segmentize(params)
 
 prob = TrainProblem(;track, vᵢ, vf, ρ, resistance = myresistance, T, umax = u_max, umin = u_min,
     speedlimit = customlimit)
@@ -30,5 +32,6 @@ prob = TrainProblem(;track, vᵢ, vf, ρ, resistance = myresistance, T, umax = u
 chain, sol = solve!(prob)
 
 plot(sol.t, sol[2,:]; color = modecolor(sol.t, chain), label = false, lw = 2)
+plot!(customlimit, start(track), finish(track); color = :red, label = false)
 
 

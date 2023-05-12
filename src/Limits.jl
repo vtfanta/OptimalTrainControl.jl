@@ -16,6 +16,14 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
             du[3] = (ψ(myresistance, v) - v^2 * derivative(v -> p.u([t, v, η], p, x), v)) * η / v^3 + (ψ(myresistance,v) - ψ(myresistance,V))/v^3 - (1 - p.ρ) * derivative(v -> p.u([t, v, η], p, x), v) / v
         end
     end
+
+    function jac!(J, u, p, x)
+        J[1,1] = 0
+        J[2,1] = 0
+        J[1,2] = - inv(u[2])^2
+        J[2,2] = (-ψ(myresistance, u[2]) * inv(u[2])^2) - (p.u(u,p,x) + p.r(u,p,x)+p.g(u,p,x)) * inv(u[2])^2
+        nothing
+    end
     
     function mycontrol(u, p, x)
         if p.currentmode == :MaxP
@@ -35,7 +43,10 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
             out[2] = u[3] - (int.p.ρ - 1)
         end
         function affect_modeswitch!(int, idx)
-            if idx == 1 && int.t ≥ seg2.start
+            if idx == 1 && int.t ≥ seg2.start && seg2.mode == :HoldP || seg2.mode == :HoldPlim
+                terminate!(int)
+            end
+            if idx == 2 && int.t ≥ seg2.start && seg2.mode == :HoldR || seg2.mode == :HoldRlim
                 terminate!(int)
             end
     
@@ -48,7 +59,10 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
             end
         end
         function affect_neg_modeswitch!(int, idx)
-            if idx == 1 && int.t ≥ seg2.start
+            if idx == 1 && int.t ≥ seg2.start && seg2.mode == :HoldP || seg2.mode == :HoldPlim
+                terminate!(int)
+            end
+            if idx == 2 && int.t ≥ seg2.start && seg2.mode == :HoldR || seg2.mode == :HoldRlim
                 terminate!(int)
             end
     
@@ -86,17 +100,25 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
             cbS = CallbackSet(cb_modeswitch, cb_lowspeed)
         end
         
+        f! = ODEFunction(odefun!, jac = jac!)
+        # prob = ODEProblem(f!, u0, span, p0)
         prob = ODEProblem(odefun!, u0, span, p0)
-        sol = solve(prob;alg_hints = [:stiff], tstops, callback = cbS, d_discontinuities = tstops, 
+        sol = solve(prob, ;alg_hints = [:stiff], tstops, callback = cbS, d_discontinuities = tstops, 
             dtmax = 10)
         return sol, switching_points
     end
     
     function try_link(x0, seg2, initmode, linkmode = :normal, start = 0)
+        if seg1.mode == :HoldP || seg1.mode == :HoldPlim
+            u0 = [0.0, seg1.holdspeed, 0.0]
+        elseif seg1.mode == :HoldR || seg1.mode == :HoldRlim
+            u0 = [0.0, seg1.holdspeed, ρ - 1.0]
+        end
+
         if linkmode == :normal
             p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
             (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
-            sol, _ = solve_regular!([0.0, V, 0.0], (x0, seg2.finish), p0, seg2)    
+            sol, _ = solve_regular!(u0, (x0, seg2.finish), p0, seg2)    
     
             v = sol[2,:]
             η = sol[3,:]
@@ -123,9 +145,9 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
         elseif linkmode == :speedlimit
             p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
             (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, initmode)
-            sol, _ = solve_regular!([0.0, V, 0.0], (start, seg2.finish), p0, seg2, x0)
+            sol, _ = solve_regular!(u0, (start, seg2.finish), p0, seg2, x0)
     
-            # @show sol.t[end]
+            @show sol.t[end]
             # @show sol[2,end],sol[3,end]
             # display(plot(sol.t, sol[3,:]))
             # display(vline!([seg2.start, seg2.finish]))
@@ -153,12 +175,12 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
 
     segs = getmildsegments(modelparams)
 
-    if seg1.mode == :HoldP
+    if seg1.mode == :HoldP || seg1.mode == :HoldPlim
 
         domain = (seg1.start, seg1.finish - 1)
 
         nudge = getgradientacceleration(steephilltrack, seg1.finish + 1) < 0 ? :MaxP : :Coast
-    else # seg1.mode == :HoldR
+    else # seg1.mode == :HoldR || seg1.mode == :HoldRlim
         domain = (seg1.start, seg1.finish + 1)
 
         currg = getgradientacceleration(steephilltrack, seg1.finish - 1)
@@ -177,16 +199,28 @@ function linkunderspeedlimit(seg1::Segment, seg2::Segment, modelparams::ModelPar
         return nothing
     end
 
+    if seg1.mode == :HoldP || seg1.mode == :HoldPlim
+        u0 = [0.0, seg1.holdspeed, 0.0]
+    elseif seg1.mode == :HoldR || seg1.mode == :HoldRlim
+        u0 = [0.0, seg1.holdspeed, ρ - 1.0]
+    end
+
     xopt = find_zero(x -> try_link(x, targetseg, startingmode), domain)
     p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
         (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-    sol, _ = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg)
+    sol, _ = solve_regular!(u0, (xopt, targetseg.finish), p0, targetseg)
     # if maximum(sol[2,:]) ≈ speedlimit
         # println("CONDITION!")
+    valleft = try_link(0, targetseg, startingmode, :speedlimit, xopt)
+    valright = try_link(5, targetseg, startingmode, :speedlimit, xopt)
+    if sign(valleft) == sign(valright)
+        return nothing
+    end
+
     Δη = find_zero(η -> try_link(η, targetseg, startingmode, :speedlimit, xopt), (0, 5))
     p0 = OldModelParams(mycontrol, (u, p, x) -> resistance(myresistance, u[2]), 
     (u, p, x) -> getgradientacceleration(steephilltrack, x), ρ, startingmode)
-    sol, points = solve_regular!([0.0,V,0.0], (xopt, targetseg.finish), p0, targetseg, Δη)
+    sol, points = solve_regular!(u0, (xopt, targetseg.finish), p0, targetseg, Δη)
     # end
     pushfirst!(points, (xopt, nudge))
     push!(points, (sol.t[end], seg2.mode))
@@ -198,7 +232,7 @@ function segmentize(params::ModelParams)
 
     if ρ > 0
 		W = find_zero(W -> ψ(resistance, W) - ψ(resistance, V) / ρ, V)
-        # @show W
+        @show W
     end
 
     regsegs = getmildsegments(params)
@@ -218,6 +252,7 @@ function segmentize(params::ModelParams)
         else
             current_regseg = regsegs[current_regseg_idx]
             limspeed = speedlimit(mid)
+            @show current_regseg, limspeed
             if current_regseg.mode == :HoldP && limspeed < V
                 push!(additionalsegs, Segment(max(starts[idx], current_regseg.start),
                 min(ends[idx], current_regseg.finish), :HoldPlim, limspeed))
@@ -240,7 +275,7 @@ function segmentize(params::ModelParams)
             end
         end
     end
-    # println(additionalsegs)
+    println(additionalsegs)
 
     ret = []
     addidx = 1

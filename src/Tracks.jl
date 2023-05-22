@@ -2,7 +2,7 @@
 
 export FlatTrack, HillyTrack
 export getgrade, inclinationforce, getgradientacceleration
-export start, finish, setspeedlimits!
+export start, finish, setspeedlimits!, subtrack
 
 function setspeedlimits!(prob::TrainProblem, Xs, limits)
     @unpack track = prob
@@ -242,4 +242,43 @@ end
         x, y
     end
     x, y
+end
+
+function (t::HillyTrack)(x)
+    t.interpolator(x)
+end
+
+function (t::FlatTrack)(x)
+    0
+end
+
+function subtrack(t::HillyTrack, from, to)
+    
+    if from in t.waypoints[:,"Distance"]
+        idx = findfirst(t.waypoints[:,"Distance"] .== from)
+        startpoint = (t.waypoints[idx,"Distance"], t.waypoints[idx,"Altitude"])
+    else
+        startpoint = (from, t(from))
+    end
+
+    if to in t.waypoints[:,"Distance"]
+        idx = findfirst(t.waypoints[:,"Distance"] .== to)
+        endpoint = (t.waypoints[idx,"Distance"], t.waypoints[idx,"Altitude"])
+    else
+        endpoint = (to, t(to))
+    end
+
+    newwaypointsX = t.waypoints[from .< t.waypoints[:,"Distance"] .< to,"Distance"]
+    newwaypointsY = t.waypoints[from .< t.waypoints[:,"Distance"] .< to,"Altitude"]
+
+    HillyTrack([startpoint[1]; newwaypointsX; endpoint[1]],
+        [startpoint[2]; newwaypointsY; endpoint[2]])
+end
+
+function subtrack(t::HillyTrack, from)
+    subtrack(t, from, finish(t))
+end
+
+function subtrack(t::FlatTrack, from)
+    FlatTrack(t.X - from)
 end

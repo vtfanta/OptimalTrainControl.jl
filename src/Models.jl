@@ -1,8 +1,7 @@
 # module Models
 @reexport using OptimalTrainControl
 
-export albrecht_odefun!
-export play, controllaw, calculatecontrol!, φ, φ′, ψ, resistance, E
+export calculatecontrol!, φ, φ′, ψ, resistance, E
 export getmildsegments
 
 """
@@ -119,115 +118,6 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 	end 
 	pushfirst!(ret, Segment(-Inf, starts[1], :HoldP, V))
 	push!(ret, Segment(ends[end], Inf, :HoldP, V))
-end
-
-
-
-function play(s::BasicScenario, initialvalues)
-    X = 100.0
-    prob = ODEProblem(odefun(s), initialvalues, (0.0, X))
-    solve(prob)
-end
-
-function play(s::MinimalTimeScenario)
-    if isnothing(s.controllaw)
-        error("The scenario does not have a control law. Try running `calculatecontrols!(scenario)`.")
-    end
-
-    condition(u, t, int) = u[1] ≤ s.finalvalues[1]
-    affect!(int) = terminate!(int)    
-    cb = DiscreteCallback(condition, affect!)
-
-    prob = ODEProblem(odefun(s), s.initialvalues, (0.0, length(s.track)))
-    sol = solve(prob, 
-                dense = false, 
-                callback = cb,
-                dtmax = 200)
-end
-
-function odefun(s::OptimalScenario)
-    m = s.model
-    return function (du, u, p, t)
-        v = u[2]
-        μ₂ = u[3]
-
-        η = μ₂ * inv(v) - 1
-        ζ = η + 1 - m.ρ
-
-        μ₁ = -ψ(m.resistance, s.V)
-
-        du[1] = inv(v)
-        du[2] = (m.controllaw(t, v, η, ζ) - resistance(m.resistance, v) + 
-            getgradientacceleration(s, t)) * inv(v)
-        du[3] = μ₁ / v^2 + μ₂ * du[2] * inv(v) + 
-            μ₂ * ψ(m.resistance, v) * inv(v)^3 - 
-            (η > 0 ? η : 0) * derivative(m.maxcontrol, v) + 
-            (ζ < 0 ? -ζ : 0) * derivative(m.mincontrol, v)
-    end
-end
-
-function odefun(s::MinimalTimeScenario)
-    m = s.model
-    return function (du, u, p, t)
-        du[1] = (s.controllaw(u, t) - resistance(m.resistance, u[1]) + getgradientacceleration(s, t)) * inv(u[1])
-    end
-end
-
-function odefun(s::BasicScenario)
-    m = s.model
-    return function (du, u, p, t)
-        du[1] = inv(u[2])
-        du[2] = (m.maxcontrol(u[2]) - resistance(m.resistance, u) + getgradientacceleration(s, t)) * inv(u[2])
-    end
-end
-
-function calculatecontrol!(s::OptimalScenario)
-    # TODO
-end
-
-function calculatecontrol!(s::MinimalTimeScenario)
-    function _maxthrottle!(du, u, p, t)
-        du[1] = (s.model.maxcontrol(u[1]) - resistance(s.model.resistance, u) + 
-            getgradientacceleration(s, t)) * inv(u[1])
-    end
-    function _maxbrake!(du, u, p, t)
-        du[1] = (s.model.mincontrol(u[1]) - resistance(s.model.resistance, u) + 
-            getgradientacceleration(s, t)) * inv(u[1])
-    end
-
-    @info "Calculating the time-optimal strategy"
-
-    throttleprob = ODEProblem(_maxthrottle!, s.initialvalues, (0.0, length(s.track)))
-    brakeprob = ODEProblem(_maxbrake!, s.finalvalues, (length(s.track), 0))
-
-    throttlesol = solve(throttleprob)
-    brakesol = solve(brakeprob)
-
-    throttleinterpolator = 
-        CubicSplineInterpolator(throttlesol.t, throttlesol[1,:], WeakBoundaries())
-    brakeinterpolator = 
-        CubicSplineInterpolator(reverse(brakesol.t), reverse(brakesol[1,:]), WeakBoundaries())
-
-    switchingpoint = 
-        find_zero(x -> throttleinterpolator(x) - brakeinterpolator(x), 1.0)
-
-    # @show switchingpoint
-
-    s.controllaw = 
-        function (u, t) 
-            # @show t
-            if t ≤ switchingpoint
-                s.model.maxcontrol(u[1])
-            else
-                s.model.mincontrol(u[1])
-            end
-        end
-    throttlesol, brakesol, throttleinterpolator, brakeinterpolator
-end
-
-function controllaw(m::Model, u, p, t)
-    # All gas, no brakes
-    m.maxcontrol
 end
 
 """

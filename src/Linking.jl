@@ -45,7 +45,7 @@ function solve!(prob::TrainProblem; atol = 5)
         segs = getmildsegments(params)
 
         _, sol = findchain(segs, params)
-        @show V, sol[1,end] - T
+        @debug V, sol[1,end] - T
         return sol[1,end] - T
     end
 
@@ -444,7 +444,7 @@ function isinseg(x, seg)
 end
 
 function findchain(segs, modelparams::ModelParams)
-    @show modelparams.V
+    @debug modelparams.V
     
     ρ = modelparams.ρ
     V = modelparams.V
@@ -526,7 +526,7 @@ function findchain(segs, modelparams::ModelParams)
     end
 
     candidatechains = filter(c -> c[1][1] == start(track) && isnothing(c[end][2]), chains)
-    println(candidatechains)
+    # println(candidatechains)
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain

@@ -46,15 +46,6 @@ end
 # To allow broadcasting
 Base.broadcastable(r::DavisResistance) = Ref(r)
 
-struct AlbrechtModel <: Model
-    resistance::Resistance
-    maxcontrol
-    mincontrol
-    mass::Real
-    ρ::Real
-end
-AlbrechtModel(r, ma, mi, m) = AlbrechtModel(r, ma, mi, m, 0.0)
-
 mutable struct OldModelParams
     u
     r
@@ -63,41 +54,6 @@ mutable struct OldModelParams
     currentmode
 end
 Base.broadcastable(p::OldModelParams) = Ref(p)
-
-mutable struct OptimalScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-    initialvalues
-    finalvalues
-    V
-    W
-    controllaw
-end
-function OptimalScenario(m, t, g, iv, fv, V)
-    f(x) = x + ψ(m.resistance, V)
-    b = find_zero((f, x -> derivative(f, x)), 10 * one(V), Roots.Newton())
-    h(x) = b + m.ρ * ψ(m.resistance, x)
-    W = find_zero((h, x -> derivative(h, x)), 10 * one(V), Roots.Newton())
-
-    OptimalScenario(m, t, g, iv, fv, V, W, nothing)
-end
-
-mutable struct MinimalTimeScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-    initialvalues
-    finalvalues
-    controllaw
-end
-MinimalTimeScenario(model, track, g, iv, fv) = MinimalTimeScenario(model, track, g, iv, fv, nothing)
-
-struct BasicScenario <: Scenario
-    model::Model
-    track::Track
-    g::Real
-end
 
 mutable struct Segment
     start

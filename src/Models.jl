@@ -14,8 +14,9 @@ function albrecht_odefun!(du, u, p, t)
     du[2] = (p.u(u, p, t) - p.r(u, p, t) + p.g(u, p, t)) * inv(u[2])
 end
 
-function calculatecontrol!(prob::TrainProblem, x, v, points)
+function calculatecontrol!(prob::TrainProblem, sol, points)
     @unpack track, umax, umin = prob
+    x, v = sol.t, sol[2,:]
     u = zeros(size(x))
 
     pointsx = [p[1] for p in points]

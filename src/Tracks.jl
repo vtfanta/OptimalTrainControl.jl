@@ -93,6 +93,8 @@ function HillyTrack(X::AbstractVector, Y::AbstractVector)
     elseif Base.length(X) - 1 == Base.length(Y) # Y vector consists of gradients
         newY = getys(Y, X)
         HillyTrack(X, newY)
+    else
+        error("Wrong dimensions.")
     end
 end
 

@@ -386,8 +386,14 @@ function link(seg1::Segment, seg2::Segment, modelparams::ModelParams)
         powerp = SolverParams(modelparams, nudge)
         powersol, _ = solve_regular!([0.0, vᵢ, 1.0], (start(track), finish(track)), 
             powerp, seg2, false)
-        switchingpoint = find_zero(x -> try_link(x, seg2, :Coast,modelparams, 
-            true, powersol(x)[2]), (start(track), finish(track)))
+
+        switchingpoint = nothing
+        try
+            switchingpoint = find_zero(x -> try_link(x, seg2, :Coast,modelparams, 
+                true, powersol(x)[2]), (start(track), finish(track)))
+        catch e
+            return nothing
+        end
        
         u0 = [powersol(switchingpoint)[1], powersol(switchingpoint)[2], 0.0]
         span = (switchingpoint, finish(track))
@@ -559,7 +565,7 @@ function findchain(segs, modelparams::ModelParams)
 
             # Construct the complete ODESolution
             # totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
-            totu = [[tottime[k], totspeed[k]] for k in eachindex(totdistance)]
+            totu = [[tottime[k], totspeed[k], totη[k]] for k in eachindex(totdistance)]
             prob = ODEProblem(odefun!, totu[1], (totdistance[1], totdistance[end]))
             sol = DiffEqBase.build_solution(prob, Tsit5(), totdistance, totu, 
                 retcode = ReturnCode.Success)

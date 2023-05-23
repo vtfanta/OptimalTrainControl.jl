@@ -2,8 +2,12 @@
 @reexport using OptimalTrainControl
 
 export calculatecontrol!, φ, φ′, ψ, resistance, E
-export getmildsegments
 
+"""
+    calculatecontrol!(prob::TrainProblem, sol, points)
+
+Return vector of control signal values evaluated at the distances given by `sol.t`. 
+"""
 function calculatecontrol!(prob::TrainProblem, sol, points)
     @unpack track, umax, umin = prob
     x, v = sol.t, sol[2,:]
@@ -112,11 +116,13 @@ function getmildsegments(track, V, res, umax, ρ = 0)
 end
 
 """
+    resistance(r::DavisResistance, v)
+
 Calculate the Davis formula resistant force per unit mass.
 
-    R = a + b * v + c * v^2,
+    R = r.a + r.b * v + r.c * v^2,
 
-where v is the vehicle speed and a, b and c are the resistance parameters.
+where `v` is the vehicle speed and `r.a`, `v.b` and `v.c` are the resistance parameters.
 """
 function resistance(r::DavisResistance, u)
     if Base.length(u) > 1

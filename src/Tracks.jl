@@ -45,6 +45,11 @@ end
 # To allow broadcasting
 Base.broadcastable(t::Track) = Ref(t)
 
+"""
+    FlatTrack(X::Real)
+
+Create instance of a flat track of length `X`.
+"""
 struct FlatTrack <: Track 
     X::Real
 end
@@ -73,6 +78,12 @@ function length(t::HillyTrack)
     maximum(t.waypoints[:,:Distance]) - minimum(t.waypoints[:,:Distance])
 end
 
+"""
+    HillyTrack(Xs, Ys)
+
+Create instance of a track. The track is defined by a set of waypoints
+along distance `Xs` and heights `Ys` at the appropriate x-points.
+"""
 function HillyTrack(X::AbstractVector, Y::AbstractVector) 
     f(xprev, xnow, yprev, γ) = tan(asin(γ / -9.81))*(xnow - xprev) + yprev
     function getys(γs, X)
@@ -116,26 +127,6 @@ function getgrade(track::HillyTrack, t)
 end
 
 """
-Calculate the acting force component based on the current track grade.
-The returned value is in N/kg, i.e. force per unit mass.
-"""
-function inclinationforce(s::Scenario, t)
-    @warn "This function is deprecated!"
-    - s.g * sin(getgrade(s.track, t)) * inv(s.model.mass)
-end
-
-"""
-    getgradientacceleration(::Scenario, position)
-
-Return accelerating/decelerating component of the gravitational acceleration 
-in meters per second squared [m s^-2] based on the gravitational acceleration value defined in the scenario. 
-Positive means downhill, negative means uphill.
-"""
-function getgradientacceleration(s::Scenario, position)
-    - s.g * sin(getgrade(s.track, position))
-end
-
-"""
     getgradientacceleration(::Track, position)
 
 Return acceleration/decelerating component of the gravitational acceleration
@@ -152,7 +143,7 @@ end
 """
     start(t::FlatTrack)
 
-Return 0.0 m as the beginning of the flat track.
+Return 0 as the beginning of the flat track `t`.
 
 """
 function start(::FlatTrack)
@@ -162,7 +153,7 @@ end
 """
     start(t::HillyTrack)
 
-Return start of the track in metres.
+Return start of the track `t` in metres.
 """
 function start(t::HillyTrack)
     minimum(t.waypoints[!, :Distance])
@@ -171,7 +162,7 @@ end
 """
     finish(t::HillyTrack)
 
-Return length of the track in metres.
+Return length of the track `t` in metres.
 """
 function finish(t::HillyTrack)
     maximum(t.waypoints[!, :Distance])
@@ -180,18 +171,10 @@ end
 """
     finish(t::FlatTrack)
 
-Return length of the flat track in metres.
+Return length of the flat track `t` in metres.
 """
 function finish(t::FlatTrack)
     t.X
-end
-
-# TODO
-function getsteepsegments(t::HillyTrack, maxcontrol, V)
-    ret = []
-    for (idx, row) in enumerate(eachrow(t.waypoints))
-        
-    end
 end
 
 @recipe function f(track::FlatTrack)
@@ -244,14 +227,29 @@ end
     x, y
 end
 
+"""
+    my_track(x)
+
+Return height value at the distance `x`.
+"""
 function (t::HillyTrack)(x)
     t.interpolator(x)
 end
 
+"""
+    my_flattrack(x)
+
+Return 0 height value at the distance `x`.
+"""
 function (t::FlatTrack)(x)
     0
 end
 
+"""
+    subtrack(full_track::HillyTrack, from, to)
+
+Create subtrack of type `HillyTrack` of `full_track` spanning from `from` to `to`.
+"""
 function subtrack(t::HillyTrack, from, to)
     
     if from in t.waypoints[:,"Distance"]
@@ -275,10 +273,20 @@ function subtrack(t::HillyTrack, from, to)
         [startpoint[2]; newwaypointsY; endpoint[2]])
 end
 
+"""
+    subtrack(full_track::HillyTrack, from)
+
+Create subtrack of type `HillyTrack` of `full_track` from `from` until `finish(full_track)`.
+"""
 function subtrack(t::HillyTrack, from)
     subtrack(t, from, finish(t))
 end
 
+""" 
+    subtrack(full_flattrack::FlatTrack, from)
+
+Create subtrack of type `FlatTrack` of `full_flattrack` from `from` until `finish(full_flattrack)`.
+"""
 function subtrack(t::FlatTrack, from)
     FlatTrack(t.X - from)
 end

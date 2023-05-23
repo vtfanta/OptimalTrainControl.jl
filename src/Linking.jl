@@ -2,6 +2,11 @@
 
 export solve!, modecolor
 
+"""
+    modecolor(Xs, points)
+
+Return vector of colors at positions `Xs` colored according to the control modes defined by `points`.
+"""
 function modecolor(xaxis, points)
     function mode2color(mode)
         if mode == :MaxP
@@ -31,6 +36,18 @@ function modecolor(xaxis, points)
     return colors
 end
 
+"""
+    solve!(prob::TrainProblem; atol = 5)
+
+Solve the optimal train control problem `prob` with the total journey time
+satisfied with the absolute tolerance `atol`. Return value is a tuple of
+optimal switching points and differential equation solution.
+
+# Examples
+```
+points, sol = solve!(prob)
+```
+"""
 function solve!(prob::TrainProblem; atol = 5)
     @unpack track, ρ, vᵢ, vf, T, resistance, umax, umin = prob
 
@@ -527,6 +544,9 @@ function findchain(segs, modelparams::ModelParams)
 
     candidatechains = filter(c -> c[1][1] == start(track) && isnothing(c[end][2]), chains)
     # println(candidatechains)
+    if isempty(candidatechains)
+        error("Solution not found.")
+    end
     chain = argmax(Base.length, candidatechains)
     if chain[1][1] == start(track) && chain[end][1] == finish(track) # Found overarching chain
         # Get indices of segments in the chain
@@ -581,5 +601,5 @@ function findchain(segs, modelparams::ModelParams)
         end
     end
     # print(chains)
-    error("Chain from start to finish of the track not found.")
+    error("Solution from start to finish of the track not found.")
 end

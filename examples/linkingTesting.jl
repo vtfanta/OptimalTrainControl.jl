@@ -7,14 +7,14 @@ trackY = [0,0,400,160,160,460,280,280]/9.81
 track = HillyTrack(trackX, trackY)
 myresistance = DavisResistance(1.5e-2, 0.127e-2/sqrt(2), 0.016e-2/2)
 # myresistance = DavisResistance(1.5e-2, 0, 1.5e-5)
-T = 3600.0
+T = 2600.0
 ρ = 0.
 u_max(v) = 0.125
 u_min(v) = -0.25
-vᵢ = 2.0
+vᵢ = 12.0
 vf = 2.0
 
-prob = TrainProblem(;track, resistance = myresistance, T, 
+prob = TrainProblem(;track = subtrack(track, 11e3), resistance = myresistance, T, 
     umax = u_max, umin = u_min, ρ, vᵢ, vf)
 solve!(prob)
 chain, sol = prob.switchingpoints, prob.states 

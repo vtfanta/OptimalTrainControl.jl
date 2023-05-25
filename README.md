@@ -18,7 +18,7 @@ to the Julia REPL.
 # Documentation
 
 The package reference and documentation is available [here](https://vtfanta.github.io/OptimalTrainControl.jl/dev/)
-with a selection of presented examples. A most basic example is also presented below
+with a selection of presented examples. A most basic example is also presented below.
 
 # Basic Example
 Consider the problem of finding the optimal speed profile on a flat track of length $10\ \mathrm{km}$. The total journey time is

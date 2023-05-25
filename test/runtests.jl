@@ -32,7 +32,7 @@ end
     u_max(v) = 1/max(5, v)
     params = ModelParams(; umax = u_max, resistance = res, V, track = flattrack)
 
-    segs = getmildsegments(params)
+    segs = OptimalTrainControl.getmildsegments(params)
     @test length(segs) == 3 # Flat track only has 3 segments (initial, the track, final)
     @test segs[2].start ≈ start(flattrack)
     @test segs[2].finish ≈ finish(flattrack)
@@ -45,7 +45,7 @@ end
     u_max(v) = 3 / v
     hillytrack = HillyTrack(trackX, γs)
     params = ModelParams(; umax=u_max, V, resistance = res, track = hillytrack)
-    segs = getmildsegments(params)
+    segs = OptimalTrainControl.getmildsegments(params)
     @test length(segs) == 4
     @test segs[2].finish ≈ 5e3
     @test segs[3].start ≈ 6.8e3
@@ -61,7 +61,7 @@ end
     ρ = 0.7
     params = ModelParams(; resistance = myresistance, V, track, umax = v -> 0.125, ρ)
 
-    segs = getmildsegments(params)
+    segs = OptimalTrainControl.getmildsegments(params)
     @test length(segs) == 7
     @test segs[3].mode == :HoldR && segs[5].mode == :HoldR
 end

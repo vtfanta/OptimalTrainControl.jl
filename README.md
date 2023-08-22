@@ -20,6 +20,8 @@ to the Julia REPL.
 The package reference and documentation is available [here](https://vtfanta.github.io/OptimalTrainControl.jl/dev/)
 with a selection of presented examples. A most basic example is also presented below.
 
+This package was developed as a part of master's thesis which can be read [here](https://dspace.cvut.cz/handle/10467/109765?locale-attribute=enhttps://dspace.cvut.cz/handle/10467/109765?locale-attribute=en) (along with assessments) or as a [PDF](https://dspace.cvut.cz/bitstream/handle/10467/109765/F3-DP-2023-Fanta-Vit-DP_fantavit.pdf?sequence=-1&isAllowed=y).
+
 # Basic Example
 Consider the problem of finding the optimal speed profile on a flat track of length $10\ \mathrm{km}$. The total journey time is
 $1000\ \mathrm{s}$ and the other parameters are set to their default values.

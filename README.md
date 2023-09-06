@@ -11,7 +11,7 @@ Package for energy-efficient speed profile planning for a single train.
 
 Currently, the package can be installed by entering
 ```julia
-using Pkg; Pkg.add("https://github.com/vtfanta/OptimalTrainControl.jl")
+using Pkg; Pkg.add(url="https://github.com/vtfanta/OptimalTrainControl.jl")
 ```
 to the Julia REPL.
 

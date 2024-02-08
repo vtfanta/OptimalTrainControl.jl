@@ -1,16 +1,3 @@
-# OptimalTrainControl
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://vtfanta.github.io/OptimalTrainControl_v2.jl/dev/)
-[![Build Status](https://github.com/vtfanta/OptimalTrainControl_v2.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/vtfanta/OptimalTrainControl_v2.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/vtfanta/OptimalTrainControl_v2.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/vtfanta/OptimalTrainControl_v2.jl)
-
-# Installation
-
-The package can be installed by entering
-```julia
-using Pkg; Pkg.add(url="https://github.com/vtfanta/OptimalTrainControl_v2.jl")
-```
-to the Julia REPL.
-
 # Time-Optimal Train Control (TOTC) Example
 Consider the problem of finding the time-optimal speed profile on a flat track of length $3\ \mathrm{km}$. At first we need to define a `Train` and a `Track` which will form the basis of our problem.
 
@@ -40,7 +27,7 @@ sol = solve(prob)
 plot(sol)
 plot!(twinx(), track)
 ```
-![TOTC Solution](/docs/src/assets/totc_example.svg)
+![TOTC Solution](./assets/totc_example.svg)
 
 The colours are showing the control mode which is currently engaged (green for maximum traction, red for maximum braking).
 
@@ -78,7 +65,7 @@ prob = EETCProblem(T, train, track)
 sol = solve(prob)
 plot(sol)
 ```
-![EETC Solution](/docs/src/assets/eetc_example.svg)
+![EETC Solution](./assets/eetc_example.svg)
 
 The colours specify the currently engaged control mode (green for maximum traction, blue for cruising, gray for coasting and red for maximum braking).
 
@@ -86,4 +73,4 @@ One can also inspect the optimal control signal throughout the trip:
 ```julia
 plot(sol.control, 0, track.length)
 ```
-![Optimal control](/docs/src/assets/u.svg)
+![Optimal control](./assets/u.svg)

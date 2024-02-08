@@ -2,8 +2,6 @@
 *.jl.cov
 *.jl.mem
 /Manifest.toml
+/docs/Manifest.toml
 /docs/build/
-/test/*.csv
-.vscode/
-examples/figures/
-examples2/
+/.vscode

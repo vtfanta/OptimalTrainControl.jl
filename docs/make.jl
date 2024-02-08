@@ -5,24 +5,22 @@ DocMeta.setdocmeta!(OptimalTrainControl, :DocTestSetup, :(using OptimalTrainCont
 
 makedocs(;
     modules=[OptimalTrainControl],
-    authors="Vít Fanta <fantavit@fel.cvut.cz>",
-    repo="https://github.com/vtfanta/OptimalTrainControl.jl/blob/{commit}{path}#{line}",
+    authors="Vít Fanta <fantavit@fel.cvut.cz> and contributors",
+    repo="https://github.com/vtfanta/OptimalTrainControl_v2.jl/blob/{commit}{path}#{line}",
     sitename="OptimalTrainControl.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://vtfanta.github.io/OptimalTrainControl.jl",
-        edit_link="main",
+        edit_link="master",
         assets=String[],
     ),
     pages=[
         "Home" => "index.md",
         "Problem Statement" => "problem.md",
-        "Tutorial" => "tutorials.md",
+        "Tutorial" => "tutorial.md",
         "Reference" => "reference.md"
     ],
 )
 
-deploydocs(;
-    repo="github.com/vtfanta/OptimalTrainControl.jl",
-    devbranch="main",
+deploydocs(
+    repo = "github.com/vtfanta/OptimalTrainControl_v2.jl.git",
 )

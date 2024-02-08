@@ -1,19 +1,21 @@
 module OptimalTrainControl
 
-using BasicInterpolators
-using CSV
-using DataFrames
-using DifferentialEquations
-using ForwardDiff: derivative
-using Parameters
-using RecipesBase
-using Reexport
-using Roots
+# Type definitions and constructors
+include("types.jl")
 
-include("Types.jl")
-include("Models.jl")
-include("Tracks.jl")
-include("Linking.jl")
-include("Limits.jl")
+# Track-related functions
+include("track.jl")
+
+# Solving time-optimal (minimal time) train control
+include("time_optimal.jl")
+
+# Solving energy-optimal train control on a flat track
+include("optimal_flat.jl")
+
+# Plotting-related code
+include("plot_recipes.jl")
+
+# Precompilation
+include("precompile.jl")
 
 end

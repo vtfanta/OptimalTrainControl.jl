@@ -1,0 +1,3 @@
+ignore:
+    - "src/WIP*"
+    - "src/plot_recipes.jl"

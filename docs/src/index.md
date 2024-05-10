@@ -13,6 +13,6 @@ This site serves as the main source of documentation for the package.
 
 The package can be installed by entering
 ```julia
-using Pkg; Pkg.add(url="https://github.com/vtfanta/OptimalTrainControl_v2.jl")
+using Pkg; Pkg.add(url="https://github.com/vtfanta/OptimalTrainControl.jl")
 ```
 to the Julia REPL.

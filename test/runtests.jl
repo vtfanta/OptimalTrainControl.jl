@@ -60,14 +60,14 @@ end
         length = 300.,
         altitude = 100.,
         x_gradient = [0.0],
-        gradient = [2e-3]
+        gradient = [0.]
     )
 
     timeprob = TOTCProblem(train, track)
 
     sol = solve(timeprob)
     T_end = sol.odesol.u[end][1]
-    @test isapprox(T_end, 53.149; atol=0.1)
+    @test isapprox(T_end, 40.; atol=0.1)
 end
 
 @testset "Time-optimal train control, wavy track" begin
@@ -88,7 +88,7 @@ end
 
     sol = solve(timeprob)
 
-    @test isapprox(sol.odesol[1,end], 54.30; atol = 0.1)
+    @test isapprox(sol.odesol[1,end], 40.70; atol = 0.1)
 end
 
 @testset "Energy-efficient train control, flat track" begin

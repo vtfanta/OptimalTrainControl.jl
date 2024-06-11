@@ -15,6 +15,9 @@ include("optimal_flat.jl")
 # Plotting-related code
 include("plot_recipes.jl")
 
+# TTOBench track loading
+include("ttobench_loading.jl")
+
 # Precompilation
 include("precompile.jl")
 

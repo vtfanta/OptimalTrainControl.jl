@@ -2,6 +2,15 @@ using JSON
 
 export load_ttobench_track
 
+"""
+    load_ttobench_track(filename; which_stops = (1, 2))
+
+Load a track from a file in the TTOBench format.
+
+# Arguments
+- `filename::AbstractString`: path to the file containing the track.
+- `which_stops::Tuple{Int, Int} = (1, 2)`: tuple of indices of the stops to consider (only journey between two stops is currently possible).
+"""
 function load_ttobench_track(filename::AbstractString; which_stops::Tuple{Int, Int} = (1, 2))
     if !isfile(filename)
         throw(ArgumentError("File $filename does not exist."))

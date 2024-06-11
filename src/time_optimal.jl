@@ -26,9 +26,9 @@ function solve(p::TOTCProblem)
         SA[ds1, ds2]
     end
 
-    if isnothing(p.track.x_gradient)
+    if isnothing(p.track.x_gradient) # is level track
         xspan = (0., p.track.length)
-    else
+    else # is hilly track
         xspan = (p.track.x_gradient[1], p.track.x_gradient[1] + p.track.length)
     end
 
@@ -53,16 +53,16 @@ function solve(p::TOTCProblem)
     maxlastindex = searchsortedfirst(maxsol.t, x_switch)
     minfirstindex = searchsortedfirst(reverse(minsol.t), x_switch)
 
-    tmin = reverse(minsol[1,:]) .- minimum(minsol[1,:]) .+ t_switch
+    tmin = reverse(minsol[1,:]) .+ abs(reverse(minsol[1,:])[minfirstindex]) .+ t_switch
     vmin = reverse(minsol[2,:])
 
     utot = maxsol.u[1:maxlastindex-1]
     push!(utot, [t_switch, v_switch])
-    append!(utot, [[tmin[k], vmin[k]] for k=minfirstindex:length(minsol.t)])
+    append!(utot, [[tmin[k], vmin[k]] for k=minfirstindex+1:length(minsol.t)])
 
     xtot = maxsol.t[1:maxlastindex-1]
     push!(xtot, x_switch)
-    append!(xtot, reverse(minsol.t)[minfirstindex:end])
+    append!(xtot, reverse(minsol.t)[minfirstindex+1:end])
 
     # Construct the solution
     sol = DiffEqBase.build_solution(maxodeprob, Tsit5(), xtot, utot, retcode = ReturnCode.Success)

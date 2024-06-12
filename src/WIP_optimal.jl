@@ -2,8 +2,6 @@ using OrdinaryDiffEq
 using Roots
 using StaticArrays
 
-export solve
-
 lowspeed_cond(s, x, int) = s[2] - 0.5
 lowspeed_aff(int) = terminate!(int)
 

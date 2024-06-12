@@ -12,7 +12,7 @@ train = Train(
     0.6
 )
 
-T = 800. # seconds
+T = 580. # seconds
 
 prob = EETCProblem(T, train, track)
 sol = solve(prob)

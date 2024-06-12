@@ -19,6 +19,6 @@ include("plot_recipes.jl")
 include("ttobench_loading.jl")
 
 # Precompilation
-include("precompile.jl")
+# include("precompile.jl")
 
 end

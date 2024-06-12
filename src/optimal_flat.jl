@@ -94,12 +94,9 @@ function __solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, V′::A) where
     v3 = odesol[2,:]
     x3 = odesol.t
     η3 = p.train.ρ .- 1. .+
-        (p.train.ρ .* E.(p.train, W, v3) .- E.(p.train, W, v_coast2brake)) ./
+        (p.train.ρ .* E.(p.train, W, v3) .- p.train.ρ .* E.(p.train, W, v_coast2brake)) ./
         (p.train.U̲.(v3) .- r.(p.train, v3))
-    ## construct the solution
-    # if x3[end] < p.track.length # should insert HoldP phase
-        
-    # end
+
     return [(x1, t1, v1, η1), (x2, t2, v2, η2), (x3, t3, v3, η3)]
 end
 
@@ -216,7 +213,7 @@ Compute `OTCSolution` of an energy-efficient train control `problem` on a flat t
 
 See also [`EETCProblem`](@ref), [`OTCSolution`](@ref).
 """
-function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}) where {TV,S,U,VS}
+function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}; atol = 5.) where {TV,S,U,VS}
     # On a flat track, the mode sequence goes as MaxP -> (HoldP) -> Coast -> MaxB
 
     # Check feasibility of the problem
@@ -234,7 +231,7 @@ function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}) where {TV,S,U,VS}
         sol.odesol[1,end] - p.T
     end
 
-    opt_V = Roots.find_zero(_f, V; atol = 5.)
+    opt_V = Roots.find_zero(_f, V; atol)
 
     return _solve(p, opt_V)
 end

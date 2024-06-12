@@ -43,8 +43,8 @@ function solve(p::TOTCProblem)
     mintotcprob = TOTCProblem(p.train, p.track, MaxB)
     minodeprob = ODEProblem(_odefun, s0, reverse(xspan), mintotcprob)
 
-    maxsol = OrdinaryDiffEq.solve(maxodeprob, Tsit5())
-    minsol = OrdinaryDiffEq.solve(minodeprob, Tsit5())
+    maxsol = OrdinaryDiffEq.solve(maxodeprob, Tsit5(); dtmax=100)
+    minsol = OrdinaryDiffEq.solve(minodeprob, Tsit5(); dtmax=100)
 
     # find the switching point.
     x_switch = Roots.find_zero(x -> maxsol(x)[2] - minsol(x)[2], xspan)

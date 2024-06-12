@@ -43,7 +43,7 @@ function __solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, V′::A) where
     s0 = SA[0., p.initial_speed]
     xspan = (0., p.track.length)
     odeprob = ODEProblem(_odefun_flat, s0, xspan, maxprob)
-    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs)
+    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t1 = odesol[1,:]
     v1 = odesol[2,:]
     x1 = odesol.t
@@ -73,7 +73,7 @@ function __solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, V′::A) where
     s0 = SA[odesol[1,end], v1[end]]
     xspan = (x1[end], p.track.length)
     odeprob = ODEProblem(_odefun_flat, s0, xspan, coastprob)
-    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs)
+    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t2 = odesol[1,:]
     v2 = odesol[2,:]
     x2 = odesol.t
@@ -89,7 +89,7 @@ function __solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, V′::A) where
     s0 = SA[t2[end], v2[end]]
     xspan = (x2[end], p.track.length)
     odeprob = ODEProblem(_odefun_flat, s0, xspan, brakeprob)
-    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs)
+    odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t3 = odesol[1,:]
     v3 = odesol[2,:]
     x3 = odesol.t
@@ -220,7 +220,7 @@ function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}; atol = 5.) where {TV,S
     TOsol = solve(TOTCProblem(p.train, p.track))
     # @show TOsol.odesol[1,end]
     if TOsol.odesol[1,end] ≥ p.T
-        error("EETC problem infeasible due to the total time constraint ($(p.T) s).")
+        error("EETC problem infeasible due to the total time constraint ($(p.T) s > $(TOsol.odesol[1,end]) s).")
     end
 
     # first guess of the holding speed

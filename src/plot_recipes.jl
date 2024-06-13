@@ -13,6 +13,10 @@ function mode2color(m::Mode)
         return :blue
     elseif m == HoldR
         return :orange
+    elseif m == HoldP_SL
+        return :magenta
+    elseif m == HoldR_SL
+        return :purple
     end
 end
 
@@ -67,15 +71,7 @@ end
 end
 
 @recipe function f(port::Port)
-    if port.mode == HoldP
-        color = :blue
-    elseif port.mode == HoldR
-        color = :orange
-    elseif port.mode == HoldP_SL
-        color = :magenta
-    elseif port.mode == HoldR_SL
-        color = :purple
-    end
+    color = mode2color(port.mode)
 
     @series begin
         seriestype := :path
@@ -86,5 +82,27 @@ end
         linecolor --> color     
         [port.start, port.finish], [port.speed, port.speed]
     end
+end
 
+@recipe function f(ports::Vector{Port})
+    X = []
+    Y = []
+    colors = []
+    for port in ports
+        push!(X, [port.start, port.finish])
+        push!(Y, [port.speed, port.speed])
+        push!(colors, mode2color(port.mode))
+    end
+    colors = hcat(colors...)
+
+    @series begin
+        seriestype := :path
+
+        # Ignore in legends
+        primary := false   
+
+        linecolor --> colors
+        linewidth --> 2
+        X, Y
+    end
 end

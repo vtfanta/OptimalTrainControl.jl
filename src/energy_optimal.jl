@@ -24,9 +24,9 @@ function hold_segments(p::EETCProblem, V::T, W::S) where {T<:Real, S<:Real}
         elseif -r(p.train, W) + g(p.track, segstart + 0.1) ≥ 0
 
             if speedlimit(p.track, segstart + 0.1) < W
-                push!(ports, Port(segstart, segment_borders[k+1], HoldB_SL, speedlimit(p.track, segstart + 0.1)))
+                push!(ports, Port(segstart, segment_borders[k+1], HoldR_SL, speedlimit(p.track, segstart + 0.1)))
             else
-                push!(ports, Port(segstart, segment_borders[k+1], HoldB, W))
+                push!(ports, Port(segstart, segment_borders[k+1], HoldR, W))
             end
         end
     end

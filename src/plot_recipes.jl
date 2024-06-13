@@ -65,3 +65,26 @@ end
     end
     X, Y
 end
+
+@recipe function f(port::Port)
+    if port.mode == HoldP
+        color = :blue
+    elseif port.mode == HoldR
+        color = :orange
+    elseif port.mode == HoldP_SL
+        color = :magenta
+    elseif port.mode == HoldR_SL
+        color = :purple
+    end
+
+    @series begin
+        seriestype := :path
+
+        # Ignore in legends
+        primary := false   
+
+        linecolor --> color     
+        [port.start, port.finish], [port.speed, port.speed]
+    end
+
+end

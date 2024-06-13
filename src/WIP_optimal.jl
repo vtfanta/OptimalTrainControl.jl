@@ -81,7 +81,7 @@ function _link_start(prob::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, x0::A) 
     odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(), 
         callback = lowspeed_cb)
 
-    if odesol.retcode == ReturnCode.Terminated
+    if odesol.retcode == ReturnCode.Terminated # stopped due to low speed
         return -Inf
     elseif odesol.retcode == ReturnCode.Success
         return odesol[2,end] - prob.initial_speed
@@ -104,7 +104,7 @@ function _link_finish(prob::EETCProblem{TV,S,U,Nothing,Nothing,VS}, V::A, x0::A)
     odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(), 
         callback = cbs)
 
-    if odesol.retcode == ReturnCode.Terminated
+    if odesol.retcode == ReturnCode.Terminated # stopped due to low speed
         return -Inf
     elseif odesol.retcode == ReturnCode.Success
         return odesol[2,end] - 1.0

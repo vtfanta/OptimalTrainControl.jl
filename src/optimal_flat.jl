@@ -223,6 +223,10 @@ function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}; atol = 5.) where {TV,S
         error("EETC problem infeasible due to the total time constraint ($(p.T) s > $(TOsol.odesol[1,end]) s).")
     end
 
+    if abs(TOsol.odesol[1,end] - p.T) < 2.3 * atol
+        @warn "Unexpected behaviour may appear. The time constraint is close to theoretical bound."
+    end
+
     # first guess of the holding speed
     V = p.track.length / p.T 
     

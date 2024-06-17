@@ -1,10 +1,8 @@
 using OrdinaryDiffEq
 using OptimalTrainControl
+using Plots
 using Roots
-
-r(v) = 1e-2 + 1.5e-5v^2
-ψ(v) = 3e-5v^3
-E(V, v) = ψ(V)/v + r(v)
+using StaticArrays
 
 function _odefun(s::A, p::EETCProblem, x::T) where {T<:Real, A<:AbstractArray{T,1}}
     t, v = s
@@ -23,15 +21,14 @@ end
 # choice
 V = 10.
 ρ = 0.3
-# consequence
-W = find_zero(v -> -ψ(V) + ρ*ψ(v), 1.)
-
 train = Train(;
         U̅ = v -> 3/max(5., v),
         U̲ = v -> -3/max(5., v),
         r = (1e-2, 0., 1.5e-5),
         ρ
     )
+# consequence
+W = find_zero(v -> -ψ(train, V) + ρ*ψ(train, v), 1.)
 
 track = Track(;
     length = 10e3,
@@ -60,7 +57,7 @@ lowspeed_cb = ContinuousCallback(lowspeed_cond, lowspeed_aff)
 
 callbacks = CallbackSet(lowspeed_cb)
 
-xspan = (1205., 10.)
+xspan = (1205., 0.)
 s0 = SA[0., V]
 odeprob = ODEProblem(_odefun, s0, xspan, prob;
     tstops = track.x_gradient)
@@ -72,12 +69,12 @@ plot(odesol.t, odesol[2,:])
 
 η = similar(odesol.t)
 
-Es = [E(V, V)]
+Es = [E(train, V, V)]
 for k in reverse(eachindex(odesol.t))
     v = odesol[2,k]
     x = odesol.t[k]
     
-    η[k] = (E(V, v) - last(Es)) / (train.U̅(v) - r(v) + g(track, x))
+    η[k] = (E(train, V, v) - last(Es)) / (train.U̅(v) - r(train, v) + g(track, x))
 
     if x in track.x_gradient
         push!(Es, last(Es) - η[k] * (g(track, x+1.) - g(track, x - 1.)))

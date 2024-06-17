@@ -2,6 +2,7 @@ using OrdinaryDiffEq
 using Roots
 
 export solve
+export φ, ψ, E
 
 φ(train::Train, v) = v * r(train, v)
 ψ(train::Train, v) = (train.r[2] + 2train.r[3]*v) * v^2

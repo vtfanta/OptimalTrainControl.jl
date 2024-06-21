@@ -7,28 +7,40 @@ using StaticArrays
 
 function make_cond_power2coast(p::EETCProblem, V)
     return function cond_power2coast(s, x, int)
-        η = calculate_η(s, x, int, V)
+        η = calculate_η(s, x, int.p, V)
         η
     end
 end
 
 function make_cond_coast2brake(p::EETCProblem, V)
     return function cond_coast2brake(s, x, int)
-        η = calculate_η(s, x, int, V)
+        η = calculate_η(s, x, int.p, V)
         η - (int.p.train.ρ - 1.)
     end
 end
 
-aff_2coast!(int) = int.p.current_phase = Coast
+function make_aff_2coast!(p::EETCProblem, V)
+    return function aff_2coast!(int)
+        @info "To Coast!"
+        if int.p.current_phase == MaxP
+            int.p.current_phase = Coast
+        elseif int.p.current_phase == MaxB
+            int.p.current_phase = Coast
+            # add the last E to the E array (since now there are Fs because we are in MaxB)
+            push!(int.p.Es, -E(int.p.train, V, int.u[2]))
+        end
+    end
+end
 
 function make_aff_2brake!(p::EETCProblem, V)
-
+    W = p.train.ρ > 0. ? Roots.find_zero(v -> -ψ(p.train, V) + p.train.ρ*ψ(p.train, v), V) : V
     function aff_2brake!(int)
+        @info "to Brake!"
         int.p.current_phase == Coast ? int.p.current_phase = MaxB : nothing
 
         # add the last F to the E array
         # ζ = 0 -> F = -ρ * E(W, v)
-        push!(int.p.Es, )
+        push!(int.p.Es, -int.p.train.ρ * E(int.p.train, W, int.u[2]))
     end
 end
 
@@ -52,22 +64,22 @@ function _odefun(s::A, p::EETCProblem, x::T) where {T<:Real, A<:AbstractArray{T,
 end
 
 # saving η (ζ shifted)
-function calculate_η(s, x, int, V)
+function calculate_η(s, x, p::EETCProblem, V)
     v = s[2]
     
-    if int.p.current_phase == MaxP
-        val = (E(int.p.train, V, v) + last(int.p.Es)) / 
-            (int.p.train.U̅(v) - OptimalTrainControl.r(int.p.train, v) + g(int.p.track, x))
-        # @show val
-    elseif int.p.current_phase == Coast
-        val = (E(int.p.train, V, v) + last(int.p.Es)) / 
-            (- OptimalTrainControl.r(int.p.train, v) + g(int.p.track, x))
-    elseif int.p.current_phase == MaxB
+    if p.current_phase == MaxP
+        val = (E(p.train, V, v) + last(p.Es)) / 
+            (p.train.U̅(v) - OptimalTrainControl.r(p.train, v) + g(p.track, x))
+        @show val, x, p.current_phase
+    elseif p.current_phase == Coast
+        val = (E(p.train, V, v) + last(p.Es)) / 
+            (- OptimalTrainControl.r(p.train, v) + g(p.track, x))
+    elseif p.current_phase == MaxB
         # have to calculate ζ, the Fs are also in the EETC.Es array
-        val = (int.p.train.ρ*E(int.p.train, W,v) + last(int.p.Es)) /
-            (int.p.train.U̲(v) - OptimalTrainControl.r(int.p.train, v) + g(int.p.track, x))
+        val = (p.train.ρ*E(p.train, W,v) + last(p.Es)) /
+            (p.train.U̲(v) - OptimalTrainControl.r(p.train, v) + g(p.track, x))
         # η = ζ + ρ - 1
-        val += int.p.train.ρ - 1.
+        val += p.train.ρ - 1.
     end
     return val
 end
@@ -76,11 +88,13 @@ end
 function make_update_Es(V)
     return function update_Es!(s, x, int)
         p = int.p
-        η_current = calculate_η(s, x-0.01, int, V) # just before gradient change
+        η_current = calculate_η(s, x-1e-4, p, V) # just before gradient change
+        @show η_current, p.current_phase
         g_prev = g(p.track, x-0.01)
         g_next = g(p.track, x+0.01)
         if p.current_phase == MaxP || p.current_phase == Coast  # save E
             push!(p.Es, (g_next - g_prev) * η_current + last(p.Es))
+            @show calculate_η(s, x+0.1, p, V) 
         elseif p.current_phase == MaxB  # save F
             push!(p.Es, (g_next - g_prev) * (η_current + 1 - p.train.ρ) + last(p.Es))
         end
@@ -88,19 +102,19 @@ function make_update_Es(V)
 end
 
 train = Train(
-    v -> 1/v,
-    v -> -1/v,
-    (1e-2, 0., 1.5e-5),
-    0.6
+    v -> 3/v,
+    v -> -3/v,
+    (6.75e-3, 0., 5e-5),
+    0.
 )
 
 uphill_track = Track(;
-    length = 5e3,
-    x_gradient = [0., 2e3, 3e3],
-    gradient = [0., 35/1e3, 0.]
+    length = 7.2e3,
+    x_gradient = [0., 5e3, 5.6e3, 5.8e3, 6.3e3],
+    gradient = asin.([0, -0.2, 0, -0.26, 0] ./ -9.81)
 )
 
-V = 10.
+V = 20.
 
 prob = EETCProblem(;
     train,
@@ -112,7 +126,7 @@ prob = EETCProblem(;
 )
 
 s0 = SA[0., V]
-xspan = (1910, 2110)
+xspan = (4662, 6621)
 odeprob = ODEProblem(_odefun, s0, xspan, prob;
     tstops = uphill_track.x_gradient)
 
@@ -128,24 +142,28 @@ targetspeed_cb = ContinuousCallback(targetspeed_cond, targetspeed_aff; affect_ne
 
 # saving η
 saved_vals = SavedValues(Float64, Float64)  # time type, savedval type
-saving_cb = SavingCallback((s,x,int) -> calculate_η(s,x,int,V), saved_vals)
+saving_cb = SavingCallback((s,x,int) -> calculate_η(s,x,int.p,V), saved_vals, save_everystep = true)
 
-powercoast_cb = ContinuousCallback(make_cond_power2coast(V),aff_2power!,
-    affect_neg! = aff_2coast!)
+powercoast_cb = ContinuousCallback(make_cond_power2coast(prob, V),aff_2power!,
+    affect_neg! = make_aff_2coast!(prob, V))
 
-coastbrake_cb = ContinuousCallback(make_cond_coast2brake(V), aff_2coast!,
-    affect_neg! = aff_2brake!)
+coastbrake_cb = ContinuousCallback(make_cond_coast2brake(prob, V), make_aff_2coast!(prob, V),
+    affect_neg! = make_aff_2brake!(prob, V))
 
 tstops = copy(uphill_track.x_gradient)
 # push!(tstops, (clamp.(track2.x_gradient .- 1.0, 0., Inf))...) 
 
-updateEs_cb = FunctionCallingCallback(make_update_Es(0., V); funcat = uphill_track.x_gradient[2:end], func_start = false)
+updateEs_cb = FunctionCallingCallback(make_update_Es(V); funcat = uphill_track.x_gradient[2:end], func_start = false)
 
-callbacks = CallbackSet(lowspeed_cb, targetspeed_cb, updateEs_cb, saving_cb)
+callbacks = CallbackSet(lowspeed_cb, updateEs_cb, saving_cb)
 
-odesol = OrdinaryDiffEq.solve(odeprob, Tsit5();
+odesol = OrdinaryDiffEq.solve(odeprob, AutoVern7(Rodas5());
     callback = callbacks,
     d_discontinuities = uphill_track.x_gradient,
     tstops,
-    dtmax = 10.)
+    dtmax = 3.)
+
+t_η = saved_vals.t
+η = saved_vals.saveval
 plot(odesol.t, odesol[2,:])
+plot(t_η, η)

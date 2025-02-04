@@ -221,7 +221,7 @@ function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}; atol = 5.) where {TV,S
     TOsol = solve(TOTCProblem(p.train, p.track))
     # @show TOsol.odesol[1,end]
     if TOsol.odesol[1,end] ≥ p.T
-        error("EETC problem infeasible due to the total time constraint ($(p.T) s > $(TOsol.odesol[1,end]) s).")
+        error("EETC problem infeasible due to the total time constraint ($(p.T) s < $(TOsol.odesol[1,end]) s).")
     end
 
     if abs(TOsol.odesol[1,end] - p.T) < 2.3 * atol

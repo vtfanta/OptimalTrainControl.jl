@@ -41,7 +41,12 @@ end
     # xlabel --> "Distance (m)"
     # ylabel --> "Altitude (m)"
 
-    X = copy(track.x_gradient)
+    if isnothing(track.x_gradient)
+        X = [0.]
+        @info "Plotting a flat track."
+    else
+        X = copy(track.x_gradient)
+    end
     push!(X, track.length)
 
     Y = altitude.(track, X)

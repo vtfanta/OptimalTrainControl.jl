@@ -4,7 +4,8 @@ on:
     branches:
       - main
     tags: ['*']
-  pull_request:
+  pull_request:  # Ensure PRs to any branch trigger the workflow
+    branches: ['*']  # Add this line
   workflow_dispatch:
 concurrency:
   # Skip intermediate builds: always.

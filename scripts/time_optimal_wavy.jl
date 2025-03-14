@@ -16,7 +16,7 @@ track = Track(
 
 timeprob = TOTCProblem(train, track)
 
-sol = solve(timeprob)
+sol = OptimalTrainControl.solve(timeprob)
 
 plot(sol, xlabel = "Distance (m)", ylabel = "Speed (m/s)", label = false)
 plot!(twinx(), track, ylabel = "Altitude (m)")

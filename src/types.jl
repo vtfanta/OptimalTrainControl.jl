@@ -1,7 +1,7 @@
 using OrdinaryDiffEq
 
 export Mode, Train, Track, OTCSolution, TOTCProblem, EETCProblem
-export MaxP, HoldP, HoldR, Coast, MaxB
+export MaxP, HoldP, HoldR, Coast, MaxB, HoldP_SL, HoldR_SL
 export Port
 
 """
@@ -18,6 +18,8 @@ An Enum useful for specifying the five possible control modes:
     HoldR = 2
     Coast = 4
     MaxB = 8
+    HoldP_SL = 16
+    HoldR_SL = 32
 end    
 
 """

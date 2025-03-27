@@ -2,6 +2,7 @@ using OrdinaryDiffEq
 using Roots
 
 export solve
+export φ, ψ, E
 
 φ(train::Train, v) = v * r(train, v)
 ψ(train::Train, v) = (train.r[2] + 2train.r[3]*v) * v^2
@@ -220,7 +221,7 @@ function solve(p::EETCProblem{TV,S,U,Nothing,Nothing,VS}; atol = 5.) where {TV,S
     TOsol = solve(TOTCProblem(p.train, p.track))
     # @show TOsol.odesol[1,end]
     if TOsol.odesol[1,end] ≥ p.T
-        error("EETC problem infeasible due to the total time constraint ($(p.T) s > $(TOsol.odesol[1,end]) s).")
+        error("EETC problem infeasible due to the total time constraint ($(p.T) s < $(TOsol.odesol[1,end]) s).")
     end
 
     if abs(TOsol.odesol[1,end] - p.T) < 2.3 * atol

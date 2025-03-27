@@ -75,6 +75,9 @@ function altitude(t::Track, position::T) where {T <: Real}
     if !isvalidposition(t, position)
         throw(ArgumentError("Position $(position) out of bounds."))
     end
+    if isnothing(t.x_gradient)
+        return t.altitude
+    end
 
     integrator = t.altitude
     for k in 2:length(t.x_gradient)
@@ -103,9 +106,13 @@ function segmentize!(t::Track)
     if isempty(t.speedlimit)
         t.x_segments = t.x_gradient
     else
-        curr_x = t.x_gradient[1]
-        @assert curr_x ≈ t.x_speedlimit[1] "First elements of `t.x_gradient` and t.x_speedlimit` do not align."
+        if !isnothing(t.x_gradient)
+            curr_x = t.x_gradient[1]
+            @assert curr_x ≈ t.x_speedlimit[1] "First elements of `t.x_gradient` and t.x_speedlimit` do not align."
 
-        t.x_segments = unique(sort([t.x_gradient; t.x_speedlimit]))
+            t.x_segments = unique(sort([t.x_gradient; t.x_speedlimit]))
+        else
+            t.x_segments = t.x_speedlimit
+        end
     end
 end

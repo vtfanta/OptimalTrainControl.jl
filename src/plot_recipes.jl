@@ -13,6 +13,10 @@ function mode2color(m::Mode)
         return :blue
     elseif m == HoldR
         return :orange
+    elseif m == HoldP_SL
+        return :magenta
+    elseif m == HoldR_SL
+        return :purple
     end
 end
 
@@ -37,7 +41,12 @@ end
     # xlabel --> "Distance (m)"
     # ylabel --> "Altitude (m)"
 
-    X = copy(track.x_gradient)
+    if isnothing(track.x_gradient)
+        X = [0.]
+        @info "Plotting a flat track."
+    else
+        X = copy(track.x_gradient)
+    end
     push!(X, track.length)
 
     Y = altitude.(track, X)
@@ -64,4 +73,41 @@ end
         X, Y
     end
     X, Y
+end
+
+@recipe function f(port::Port)
+    color = mode2color(port.mode)
+
+    @series begin
+        seriestype := :path
+
+        # Ignore in legends
+        primary := false   
+
+        linecolor --> color     
+        [port.start, port.finish], [port.speed, port.speed]
+    end
+end
+
+@recipe function f(ports::Vector{Port})
+    X = []
+    Y = []
+    colors = []
+    for port in ports
+        push!(X, [port.start, port.finish])
+        push!(Y, [port.speed, port.speed])
+        push!(colors, mode2color(port.mode))
+    end
+    colors = hcat(colors...)
+
+    @series begin
+        seriestype := :path
+
+        # Ignore in legends
+        primary := false   
+
+        linecolor --> colors
+        linewidth --> 2
+        X, Y
+    end
 end

@@ -1,4 +1,5 @@
 using OptimalTrainControl
+using Plots
 
 train = Train(
     v -> 1/v,

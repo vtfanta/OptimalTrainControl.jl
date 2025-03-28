@@ -5,6 +5,12 @@ using Plots
 using Roots
 using StaticArrays
 
+#TODO can V be put inside the ODEProblem parameters?
+"""
+Create condition for continuous callback ODE solver function (root finding) for the transition
+between MaxP and Coast phases. The factory is needed because the calculation of η depends on the 
+speed parameter V.
+"""
 function make_cond_power2coast(p::EETCProblem, V)
     return function cond_power2coast(s, x, int)
         η = calculate_η(s, x, int.p, V)
@@ -12,6 +18,11 @@ function make_cond_power2coast(p::EETCProblem, V)
     end
 end
 
+"""
+Create condition for continuous callback ODE solver function (root finding) for the transition
+between Coast and Brake phases. The factory is needed because the calculation of η depends on the 
+speed parameter V.
+"""
 function make_cond_coast2brake(p::EETCProblem, V)
     return function cond_coast2brake(s, x, int)
         η = calculate_η(s, x, int.p, V)
@@ -19,6 +30,14 @@ function make_cond_coast2brake(p::EETCProblem, V)
     end
 end
 
+"""
+Create affect! for continuous callback ODE solver function (root finding) for the transition
+to the Coast phase. The factory is needed because calculation of E depends on the
+speed parameter V.
+
+Augment the vector of the E coefficients which depend on current value of η to assure
+continuity.
+"""
 function make_aff_2coast!(p::EETCProblem, V)
     return function aff_2coast!(int)
         @info "To Coast!"
@@ -32,6 +51,14 @@ function make_aff_2coast!(p::EETCProblem, V)
     end
 end
 
+"""
+Create affect! for continuous callback ODE solver function (root finding) for the transition
+to the Brake phase. The factory is needed because the calculation of E depends on the
+speed parameter W which itself depends on V, train resistance and ρ.
+
+Augment the vector of the E coefficients which depend on current value of η to assure
+continuity.
+"""
 function make_aff_2brake!(p::EETCProblem, V)
     W = p.train.ρ > 0. ? Roots.find_zero(v -> -ψ(p.train, V) + p.train.ρ*ψ(p.train, v), V) : V
     function aff_2brake!(int)
@@ -44,8 +71,17 @@ function make_aff_2brake!(p::EETCProblem, V)
     end
 end
 
+"""
+Create affect! for continuous callback ODE solver function (root finding) for the transition
+to the Power phase. The factory is not necessarily needed, but other affect! functions are factories.
+"""
 aff_2power!(int) = int.p.current_phase == Coast ? int.p.current_phase = MaxP : nothing
 
+"""
+Right-hand side of the ODE system for the EETC problem. The function calculates the derivatives
+and returns them in a StaticArray. The function assumes presence in a regular phase (MaxP, Coast, MaxB), so
+it is used only to link singular phases.
+"""
 function _odefun(s::A, p::EETCProblem, x::T) where {T<:Real, A<:AbstractArray{T,1}}
     t, v = s
 

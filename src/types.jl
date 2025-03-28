@@ -175,7 +175,7 @@ end
 EETCProblem(T, train, track, mode) = EETCProblem(T, train, track, mode, 1., Float64[])
 EETCProblem(T, train, track) = EETCProblem(T, train, track, MaxP)
 
-struct Port{T<:AbstractFloat}
+@kwdef struct Port{T<:AbstractFloat}
     start::T
     finish::T
     mode::Mode

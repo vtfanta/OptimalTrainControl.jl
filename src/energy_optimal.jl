@@ -1,4 +1,9 @@
 export hold_segments!
+export calculate_W
+
+function calculate_W(p::EETCProblem, V::Real)
+    W = p.train.ρ > 0. ? Roots.find_zero(v -> -ψ(p.train, V) + p.train.ρ*ψ(p.train, v), V) : V
+end
 
 function hold_segments!(p::EETCProblem, V::T, W::S) where {T<:Real, S<:Real}
     # Find points at which gradient and/or speed limit changes

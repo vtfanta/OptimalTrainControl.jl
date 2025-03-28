@@ -1,4 +1,11 @@
-export r, g, isvalidposition, gradient, speedlimit, altitude, segmentize!
+export r, g, isvalidposition, gradient, speedlimit, altitude, segmentize!, length
+
+"""
+    length(track::Track)
+
+Return length of `track` in metres.
+"""
+Base.length(t::Track) = t.length
 
 """
     r(train::Train, speed:Real)

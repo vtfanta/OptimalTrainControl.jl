@@ -110,7 +110,13 @@ end
 end
 
 @testset "TTOBench JSON loading" begin
-    loaded_track = load_ttobench_track("../test/CH_Fribourg_Bern.json")
+    if isfile("./test/CH_Fribourg_Bern.json")
+        loaded_track = load_ttobench_track("./test/CH_Fribourg_Bern.json")
+    elseif isfile("../test/CH_Fribourg_Bern.json")
+        loaded_track = load_ttobench_track("../test/CH_Fribourg_Bern.json")
+    else
+        error("Test file not found.")
+    end
     
     @test length(loaded_track) == 31240.7
     

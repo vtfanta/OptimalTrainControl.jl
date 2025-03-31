@@ -6,3 +6,4 @@
 /docs/build/
 /.vscode
 *.json
+!test/CH_*.json

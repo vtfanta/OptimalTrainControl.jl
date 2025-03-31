@@ -70,8 +70,6 @@ function load_ttobench_track(filename::AbstractString; which_stops::Tuple{Int, I
         sl_v *= 0.44704
     end
 
-    track = Track(length = length, x_speedlimit = sl_x, speedlimit = sl_v)
-
     # altitude
     if "altitude" ∈ keys(top_dict)
         altitude = top_dict["altitude"]["value"]
@@ -84,8 +82,8 @@ function load_ttobench_track(filename::AbstractString; which_stops::Tuple{Int, I
         elseif altitude_unit == "mi"
             altitude *= 1609.34
         end
-
-        track.altitude = altitude
+    else
+        altitude = 0.
     end
 
     # gradient
@@ -110,7 +108,7 @@ function load_ttobench_track(filename::AbstractString; which_stops::Tuple{Int, I
             g_g /= 100
         end
             
-        track = Track(length = length, x_speedlimit = sl_x, speedlimit = sl_v,
+        track = Track(;altitude, length = length, x_speedlimit = sl_x, speedlimit = sl_v,
             x_gradient = g_x, gradient = g_g)
     end
 

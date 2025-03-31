@@ -108,3 +108,18 @@ end
     @test isapprox(sol.odesol[1,end], T; atol = 5.)
     @test isapprox(sol.odesol[2,end], 1.; atol = 0.1)
 end
+
+@testset "TTOBench JSON loading" begin
+    loaded_track = load_ttobench_track("CH_Fribourg_Bern.json")
+    
+    @test length(loaded_track) == 31240.7
+    
+    @test gradient(loaded_track, 3000) == 0.
+    @test gradient(loaded_track, 6100) ≈ 1.7 / 1000
+    
+    @test speedlimit(loaded_track, 8000) ≈ 105 / 3.6
+
+    @test loaded_track.altitude ≈ 630.
+    @test altitude(loaded_track, 0) ≈ 630.
+    @test altitude(loaded_track, 222.7) ≈ 630 - 2.4 / 1000 * 222.7
+end

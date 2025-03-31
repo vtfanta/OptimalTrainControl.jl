@@ -110,7 +110,7 @@ end
 end
 
 @testset "TTOBench JSON loading" begin
-    loaded_track = load_ttobench_track("CH_Fribourg_Bern.json")
+    loaded_track = load_ttobench_track("../test/CH_Fribourg_Bern.json")
     
     @test length(loaded_track) == 31240.7
     

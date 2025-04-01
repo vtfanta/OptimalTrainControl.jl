@@ -5,7 +5,8 @@ function calculate_W(p::EETCProblem, V::Real)
     W = p.train.ρ > 0. ? Roots.find_zero(v -> -ψ(p.train, V) + p.train.ρ*ψ(p.train, v), V) : V
 end
 
-function hold_segments!(p::EETCProblem, V::T, W::S) where {T<:Real, S<:Real}
+function hold_segments!(p::EETCProblem, V::T) where {T<:Real}
+    W = calculate_W(p, V)
     # Find points at which gradient and/or speed limit changes
     segment_borders = segmentize!(p.track)
     push!(segment_borders, p.track.length)
@@ -21,7 +22,7 @@ function hold_segments!(p::EETCProblem, V::T, W::S) where {T<:Real, S<:Real}
             if speedlimit(p.track, segstart + 0.1) < V  # choose the lower of speed limit and V
                 push!(ports, Port(segstart, segment_borders[k+1], HoldP_SL, speedlimit(p.track, segstart + 0.1)))
             else
-                if ports[end].speed == V && ports[end].mode == HoldP
+                if !isempty(ports) && ports[end].speed == V && ports[end].mode == HoldP
                     ports[end] = Port(ports[end].start, segment_borders[k+1], HoldP, V)
                 else
                     push!(ports, Port(segstart, segment_borders[k+1], HoldP, V))

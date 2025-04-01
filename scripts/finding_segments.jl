@@ -1,4 +1,5 @@
 using OptimalTrainControl
+using Plots
 
 track = Track(
     length = 5e3,

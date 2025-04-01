@@ -110,7 +110,7 @@ Modify `track.x_segments` such that its elements mark starts of
 track parts on which both gradient and speed limit are constant.
 """
 function segmentize!(t::Track) 
-    if isempty(t.speedlimit)
+    if isnothing(t.speedlimit) || isempty(t.speedlimit)
         t.x_segments = t.x_gradient
     else
         if !isnothing(t.x_gradient)

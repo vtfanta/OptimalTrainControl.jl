@@ -18,7 +18,7 @@ train = Train(
 
 prob = EETCProblem(500., train, track)
 
-ports = hold_segments!(prob, 10., 12.)
+ports = hold_segments!(prob, 10.)
 
 plot(ports)
 ylims!(0., 12)

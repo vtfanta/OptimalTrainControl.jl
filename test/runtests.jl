@@ -129,3 +129,61 @@ end
     @test altitude(loaded_track, 0) ≈ 630.
     @test altitude(loaded_track, 222.7) ≈ 630 - 2.4 / 1000 * 222.7
 end
+
+@testset "Finding potential singular segments" begin
+    
+    # with speed limits
+    track = Track(
+        length = 5e3,
+        altitude = 10.,
+        x_gradient = [0., 2e3, 3e3, 4e3],
+        gradient = [0., 35/1e3, 0., -35/1e3],
+        x_speedlimit = [0., 1e3, 2.5e3],
+        speedlimit = [9., 30., 15.]
+    )
+
+    train = Train(
+        v -> 1/v,
+        v -> -1/v,
+        (1e-2, 0., 1.5e-5),
+        0.6
+    )
+
+    prob = EETCProblem(500., train, track)
+
+    ports = hold_segments!(prob, 10.)
+    W = calculate_W(prob, 10.)
+    
+    @test length(ports) == 3    # TODO change later if start and finish segments are included
+    @test ports[1].mode == HoldP_SL
+    @test all(getproperty.(filter(p -> p.mode == HoldP, ports), :speed) .== 10.)
+    @test all(getproperty.(filter(p -> p.mode == HoldR, ports), :speed) .== W)
+    @test ports[3].mode == HoldR
+    @test ports[2].speed == 10.
+    @test ports[1].speed == speedlimit(track, (ports[1].start + ports[1].finish) / 2)
+    @test ports[2].start == ports[1].finish
+
+    # without speed limits
+    track = Track(
+        length = 5e3,
+        altitude = 10.,
+        x_gradient = [0., 2e3, 3e3, 4e3],
+        gradient = [0., 35/1e3, 0., -35/1e3]
+    )
+
+    train = Train(
+        v -> 1/v,
+        v -> -1/v,
+        (1e-2, 0., 1.5e-5),
+        0.6
+    )
+
+    prob = EETCProblem(500., train, track)
+
+    ports = hold_segments!(prob, 10.)
+    
+    @test length(ports) == 2    # TODO change later if start and finish segments are included
+    @test ports[1].mode == HoldP
+    @test ports[2].mode == HoldR
+    @test ports[1].start == track.x_gradient[1]
+end

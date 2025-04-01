@@ -6,6 +6,7 @@ on:
     tags: ['*']
   pull_request:  # Ensure PRs to any branch trigger the workflow
     branches: ['*']  # Add this line
+    types: [opened, ready_for_review, reopened]
   workflow_dispatch:
 concurrency:
   # Skip intermediate builds: always.

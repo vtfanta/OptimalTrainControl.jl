@@ -2,6 +2,8 @@ using RecipesBase
 
 export mode2color
 
+# TODO add Vector{Mode} plotting recipe
+
 function mode2color(m::Mode)
     if m == MaxP
         return :green

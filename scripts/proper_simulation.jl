@@ -9,6 +9,8 @@ using StaticArrays
 # - ensure proper calculation and saving of η
 # - ensure proper calculations of Es (necessary for η)
 
+# Test on examples in 10.1016/j.automatica.2013.07.008
+
 module ParamsWrapper
     using OptimalTrainControl
     mutable struct EETCSimParams{T<:Real}
@@ -23,40 +25,60 @@ end
 EETCSimParams = ParamsWrapper.EETCSimParams # TODO remove this wrapper, WARNING
 
 # define the track
+γ2grade(γ) = (-γ / 9.81) / sqrt(1 - (γ / 9.81)^2)
+γs = [0, -0.2, 0, -0.26, 0]
 track = Track(
-    length = 5e3,
-    altitude = 10.,
-    x_gradient = [0., 2e3, 3e3, 4e3],
-    gradient = [0., 35/1e3, 0., -35/1e3],
+    length = 7.2e3,
+    altitude = 0.,
+    x_gradient = [0., 5e3, 5.6e3, 5.8e3, 6.3e3], 
+    gradient = γ2grade.(γs),
 )
 
 # define the train
 train = Train(
-    v -> 1/v,
-    v -> -1/v,
-    (1e-2, 0., 1.5e-5),
+    v -> 3/v,
+    v -> -3/v,
+    (6.75e-3, 0., 5e-5),
     0.6
 )
+V = 20.
 
-# guess initial Es[1]; during solution of EETC problem, this needs to be optimized for
-Es1 = -0.0185
+# for debugging only
+function _get_initial_E(η₀, params::EETCSimParams) 
+    phase = params.current_phase
+    V = params.V
+    W = params.W
+    train = params.eetcprob.train
+    track = params.eetcprob.track
+    v0 = params.eetcprob.initial_speed
+    if phase == MaxP
+        Es1 = η₀ * (train.U̅(v0) - r(train, v0) + g(track, track.x_gradient[1])) - E(train, V, v0)
+    elseif phase == Coast
+        Es1 = η₀ * (-r(train, v0) + g(track, track.x_gradient[1])) - E(train, V, v0)
+    elseif phase == MaxB
+        Es1 = η₀ * (train.U̲(v0) - r(train, v0) + g(track, track.x_gradient[1])) - train.ρ * E(train, W, v0)
+    end
+    Es1
+end
 
 # define the EETC problem
 total_time = 500.
 prob = EETCProblem(total_time, train, track)
-prob.Es = [Es1]             # TODO remove from EETCProblem struct
+# prob.Es = [Es1]             # TODO remove from EETCProblem struct
 prob.current_phase = MaxP   # TODO remove from EETCProblem struct
-prob.initial_speed = 1.
+prob.initial_speed = V
 
-simparams = EETCSimParams(prob, 10., OptimalTrainControl.calculate_W(prob, 10.), [Es1], Coast)
-
+simparams = EETCSimParams(prob, V, OptimalTrainControl.calculate_W(prob, V), [0.], MaxP)
+# guess initial Es[1]; during solution of EETC problem, this needs to be optimized for
+Es1 = _get_initial_E(0., simparams)
+simparams = EETCSimParams(prob, V, OptimalTrainControl.calculate_W(prob, V), [Es1], MaxP)
 
 """
 In-place version of the right-hand side of the ODE system for the EETC problem.
 
 Params are in a EETCSimParams struct.
 """
-function _odefun(s::A, p::EETCSimParams{T}, x::T) where {T<:Real, A<:AbstractArray{T,1}}
+function _odefun(s::A, p::EETCSimParams, x) where {T<:Real, A<:AbstractArray{T,1}}
     _, v = s
 
     eetcprob, phase = p.eetcprob, p.current_phase
@@ -101,6 +123,15 @@ function mode_switch_condition(out, s, x, integrator)
     _, v = s
     p = integrator.p
     η = calculate_η(s, x, p)
+    if gradient(p.eetcprob.track, x) != gradient(p.eetcprob.track, integrator.t) != gradient(p.eetcprob.track, integrator.tprev)
+        # @show x, integrator.t, integrator.tprev
+        @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
+        η_prev = calculate_η(s, integrator.tprev, p)
+        out[1] = η_prev
+        out[2] = η_prev - (p.eetcprob.train.ρ - 1.)
+        out[3] = v - 0.1
+        return
+    end
     out[1] = η  # boundary between MaxP and Coast
     out[2] = η - (p.eetcprob.train.ρ - 1.)    # boundary between Coast and MaxB
     # TODO should I add terminating condition?
@@ -126,6 +157,7 @@ function mode_switch_affect_pos!(integrator, index) # gets applied when crossing
 end
 
 function mode_switch_affect_neg!(integrator, index) # gets applied when crossing 0 from positive to negative
+    @show abs.(integrator.t .- integrator.p.eetcprob.track.x_gradient) |> minimum
     if index == 1   # MaxP to Coast
         integrator.p.current_phase = Coast
     elseif index == 2   # Coast to MaxB 
@@ -169,8 +201,8 @@ function grade_change_aff!(integrator)
 end
 
 # setup simulation
-s0 = SA[0., 10.]
-xspan = (1980., 2300)
+s0 = SA[0., V]
+xspan = (4662, 5064)
 odeprob = ODEProblem(_odefun, s0, xspan, simparams)
 
 # setup callbacks
@@ -181,6 +213,7 @@ vector_cont_cb = VectorContinuousCallback(
     mode_switch_affect_neg!,
     VECTOR_CB_LENGTH,
     save_positions = (false, false),
+    rootfind = SciMLBase.LeftRootFind
 )
 
 # saving callback
@@ -212,4 +245,4 @@ modes = η_and_mode[2,:][:]
 
 plot(odesol.t, modes .|> Int)
 plot(odesol.t, η)
-plot(η, odesol[2,:])
+# plot(η, odesol[2,:])

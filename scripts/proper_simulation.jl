@@ -9,7 +9,7 @@ using StaticArrays
 # - ensure proper calculation and saving of η
 # - ensure proper calculations of Es (necessary for η)
 
-# Test on examples in 10.1016/j.automatica.2013.07.008
+# Test on examples in 10.1016/j.automatica.2013.07.008 and 10.1016/j.trb.2015.07.024
 
 module ParamsWrapper
     using OptimalTrainControl
@@ -27,21 +27,51 @@ EETCSimParams = ParamsWrapper.EETCSimParams # TODO remove this wrapper, WARNING
 # define the track
 γ2grade(γ) = (-γ / 9.81) / sqrt(1 - (γ / 9.81)^2)
 γs = [0, -0.2, 0, -0.26, 0]
+# track = Track(
+#     length = 7.2e3,
+#     altitude = 0.,
+#     x_gradient = [0., 5e3, 5.6e3, 5.8e3, 6.3e3], 
+#     gradient = γ2grade.(γs),
+# )
+
+# track = Track(
+#     length = 9.5e3,
+#     x_gradient = [0., 5e3, 5.6e3, 5.8e3, 6.4e3],
+#     gradient = γ2grade.([0., -0.2, 0., 0.2, 0.])
+# )
+
+# track = Track(
+#     length = 7e3,
+#     x_gradient = [0., 1.5e3, 4e3, 4.4e3, 5.5e3],
+#     gradient = γ2grade.([0., -0.025, 0., -0.03, 0.])
+# )
 track = Track(
-    length = 7.2e3,
-    altitude = 0.,
-    x_gradient = [0., 5e3, 5.6e3, 5.8e3, 6.3e3], 
-    gradient = γ2grade.(γs),
+    length = 4e3,
+    x_gradient = [0., 1e3, 1.8e3, 1.9e3, 3.1e3],
+    gradient = γ2grade.([0., -0.03, 0., 0.03, 0.])
 )
 
 # define the train
+# train = Train(
+#     v -> 2/v,
+#     v -> -3/v,
+#     (6.75e-3, 0., 5e-5),
+#     0.0
+# )
+# V = 20.
+V = 25.
+
 train = Train(
-    v -> 3/v,
-    v -> -3/v,
-    (6.75e-3, 0., 5e-5),
-    0.6
+    v -> 1. / max(v, 5.),
+    v -> - 3. / max(v, 5),
+    (1e-2, 0., 1.5e-5),
+    0.
 )
-V = 20.
+
+# setup simulation
+s0 = SA[0., V]
+# xspan = (4662, 6664)
+xspan = (837, 3.5e3)
 
 # for debugging only
 function _get_initial_E(η₀, params::EETCSimParams) 
@@ -98,10 +128,28 @@ end
 
 function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
     v = s[2]
+
     
     eetcprob, V, W, Es, phase = p.eetcprob, p.V, p.W, p.Es, p.current_phase
     train = eetcprob.train
     track = eetcprob.track
+    
+    # if trying to evaluate η at invalid point (Es not updated yet), return same sign to prevent root
+    x_index = searchsortedfirst(track.x_gradient, x)
+    if x_index > length(track.x_gradient) || track.x_gradient[x_index] != x
+        if length(p.Es) < x_index - 1   # Es invalid, return sign of last valid value
+            x = track.x_gradient[x_index - 1] - 1e-2
+        else
+            # valid Es
+        end
+    else
+        if length(p.Es) < x_index
+            x = track.x_gradient[x_index] - 1e-2
+        else
+            # valid Es
+        end
+    end
+
     if phase == MaxP
         val = (E(train, V, v) + last(Es)) / 
             (train.U̅(v) - OptimalTrainControl.r(train, v) + g(track, x))
@@ -123,15 +171,10 @@ function mode_switch_condition(out, s, x, integrator)
     _, v = s
     p = integrator.p
     η = calculate_η(s, x, p)
-    if gradient(p.eetcprob.track, x) != gradient(p.eetcprob.track, integrator.t) != gradient(p.eetcprob.track, integrator.tprev)
-        # @show x, integrator.t, integrator.tprev
-        @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
-        η_prev = calculate_η(s, integrator.tprev, p)
-        out[1] = η_prev
-        out[2] = η_prev - (p.eetcprob.train.ρ - 1.)
-        out[3] = v - 0.1
-        return
-    end
+
+    # @show x, integrator.t, integrator.tprev
+    # @show any(x .≈ p.eetcprob.track.x_gradient)
+    # @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
     out[1] = η  # boundary between MaxP and Coast
     out[2] = η - (p.eetcprob.train.ρ - 1.)    # boundary between Coast and MaxB
     # TODO should I add terminating condition?
@@ -157,7 +200,6 @@ function mode_switch_affect_pos!(integrator, index) # gets applied when crossing
 end
 
 function mode_switch_affect_neg!(integrator, index) # gets applied when crossing 0 from positive to negative
-    @show abs.(integrator.t .- integrator.p.eetcprob.track.x_gradient) |> minimum
     if index == 1   # MaxP to Coast
         integrator.p.current_phase = Coast
     elseif index == 2   # Coast to MaxB 
@@ -200,9 +242,6 @@ function grade_change_aff!(integrator)
     end
 end
 
-# setup simulation
-s0 = SA[0., V]
-xspan = (4662, 5064)
 odeprob = ODEProblem(_odefun, s0, xspan, simparams)
 
 # setup callbacks

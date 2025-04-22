@@ -169,8 +169,10 @@ function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
     return val
 end
 
-
-function simulate_regular_forward(simparams::EETCSimParams, xspan::Tuple{T, T}, s0::SVector{2, T}) where {T<:Real}
+function simulate_regular_forward(sparams::EETCSimParams, xspan::Tuple{T, T}, s0::SVector{2, T}) where {T<:Real}
+    
+    # to prevent mutating
+    simparams = deepcopy(sparams)
 
     function mode_switch_condition(out, s, x, integrator)
         _, v = s
@@ -319,3 +321,12 @@ odesol = otc_sol.odesol
 # plot(odesol.t, modes)
 plot(odesol.t, η)
 # plot(η, odesol[2,:])
+
+## Profiling
+function prof_g(n, simparams, xspan, s0)
+    for _ in 1:n
+        simulate_regular_forward(simparams, xspan, s0)
+    end
+end
+
+@profview_allocs prof_g(10, simparams, xspan, s0)

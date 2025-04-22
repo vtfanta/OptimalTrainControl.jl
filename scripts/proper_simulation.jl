@@ -58,6 +58,7 @@ track = Track(
 #     (6.75e-3, 0., 5e-5),
 #     0.0
 # )
+
 # V = 20.
 V = 25.
 
@@ -281,6 +282,7 @@ odesol = OrdinaryDiffEq.solve(odeprob, AutoVern7(Rodas5()),
 η_and_mode = saved_vals.saveval |> stack
 η = η_and_mode[1,:][:]
 modes = η_and_mode[2,:][:]
+modes = Vector{Mode}(modes)
 
 plot(odesol.t, modes .|> Int)
 plot(odesol.t, η)

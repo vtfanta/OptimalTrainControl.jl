@@ -11,6 +11,8 @@ using StaticArrays
 
 # Test on examples in 10.1016/j.automatica.2013.07.008 and 10.1016/j.trb.2015.07.024
 
+const VECTOR_CB_LENGTH = 3
+
 module ParamsWrapper
     using OptimalTrainControl
     mutable struct EETCSimParams{T<:Real}
@@ -72,7 +74,7 @@ train = Train(
 # setup simulation
 s0 = SA[0., V]
 # xspan = (4662, 6664)
-xspan = (837, 3.5e3)
+xspan = (837., 3.5e3)
 
 # for debugging only
 function _get_initial_E(η₀, params::EETCSimParams) 
@@ -130,7 +132,6 @@ end
 function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
     v = s[2]
 
-    
     eetcprob, V, W, Es, phase = p.eetcprob, p.V, p.W, p.Es, p.current_phase
     train = eetcprob.train
     track = eetcprob.track
@@ -168,122 +169,153 @@ function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
     return val
 end
 
-function mode_switch_condition(out, s, x, integrator)
-    _, v = s
-    p = integrator.p
-    η = calculate_η(s, x, p)
 
-    # @show x, integrator.t, integrator.tprev
-    # @show any(x .≈ p.eetcprob.track.x_gradient)
-    # @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
-    out[1] = η  # boundary between MaxP and Coast
-    out[2] = η - (p.eetcprob.train.ρ - 1.)    # boundary between Coast and MaxB
-    # TODO should I add terminating condition?
-    out[3] = v - 0.1    # terminate when speed is too low
-end
+function simulate_regular_forward(simparams::EETCSimParams, xspan::Tuple{T, T}, s0::SVector{2, T}) where {T<:Real}
 
-function mode_switch_affect_pos!(integrator, index) # gets applied when crossing 0 from negative to positive
-    if index == 1   # Coast to MaxP
-        integrator.p.current_phase = MaxP
-    elseif index == 2   # MaxB to Coast
-        integrator.p.current_phase = Coast
-        # append to Es since switching from ζ to η
-        v = integrator.u[2]
-        Es = integrator.p
-        eetcprob = integrator.p.eetcprob
-        train = eetcprob.train
-        track = eetcprob.track
-        η₀ = train.ρ - 1.  # know this from analytic derivation
-        
-        newE = η₀ * (-r(train, v) + g(track, integrator.t)) - E(train, integrator.p.V, v)
-        push!(Es, newE)
+    function mode_switch_condition(out, s, x, integrator)
+        _, v = s
+        p = integrator.p
+        η = calculate_η(s, x, p)
+
+        # @show x, integrator.t, integrator.tprev
+        # @show any(x .≈ p.eetcprob.track.x_gradient)
+        # @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
+        out[1] = η  # boundary between MaxP and Coast
+        out[2] = η - (p.eetcprob.train.ρ - 1.)    # boundary between Coast and MaxB
+        # TODO should I add terminating condition?
+        out[3] = v - 0.1    # terminate when speed is too low
     end
-end
 
-function mode_switch_affect_neg!(integrator, index) # gets applied when crossing 0 from positive to negative
-    if index == 1   # MaxP to Coast
-        integrator.p.current_phase = Coast
-    elseif index == 2   # Coast to MaxB 
-        v = integrator.u[2]
-        Es = integrator.p.Es
-        eetcprob = integrator.p.eetcprob
-        train = eetcprob.train
-        track = eetcprob.track
-        η₀ = train.ρ - 1.  # know this from analytic derivation
-
-        integrator.p.current_phase = MaxB
-
-        # append to Es since switching from η to ζ (it's actually F)
-        newF = (η₀ - train.ρ + 1.) * (train.U̲(v) - r(train, v) + g(track, integrator.t)) - train.ρ * E(train, integrator.p.W, v)
-        push!(Es, newF)
-    elseif index == 3   # terminate because of low speed
-        terminate!(integrator)
+    function mode_switch_affect_pos!(integrator, index) # gets applied when crossing 0 from negative to positive
+        if index == 1   # Coast to MaxP
+            integrator.p.current_phase = MaxP
+        elseif index == 2   # MaxB to Coast
+            integrator.p.current_phase = Coast
+            # append to Es since switching from ζ to η
+            v = integrator.u[2]
+            Es = integrator.p
+            eetcprob = integrator.p.eetcprob
+            train = eetcprob.train
+            track = eetcprob.track
+            η₀ = train.ρ - 1.  # know this from analytic derivation
+            
+            newE = η₀ * (-r(train, v) + g(track, integrator.t)) - E(train, integrator.p.V, v)
+            push!(Es, newE)
+        end
     end
-end
 
-# discrete callback to update Es to ensure continuity of η
-grade_change_condition(s, x, integrator) = x in integrator.p.eetcprob.track.x_gradient
+    function mode_switch_affect_neg!(integrator, index) # gets applied when crossing 0 from positive to negative
+        if index == 1   # MaxP to Coast
+            integrator.p.current_phase = Coast
+        elseif index == 2   # Coast to MaxB 
+            v = integrator.u[2]
+            Es = integrator.p.Es
+            eetcprob = integrator.p.eetcprob
+            train = eetcprob.train
+            track = eetcprob.track
+            η₀ = train.ρ - 1.  # know this from analytic derivation
 
-function grade_change_aff!(integrator)
-    params = integrator.p
-    track = params.eetcprob.track
-    train = params.eetcprob.train
-    Es = params.Es
-    η₀ = calculate_η(integrator.u, integrator.tprev, params)   # current η
-    g_old = g(track, integrator.t - 0.1)
-    g_new = g(track, integrator.t + 0.1)
-    if params.current_phase != MaxB
-        E_old = last(Es)
-        E_new = (g_new - g_old) * η₀ + E_old
-        push!(Es, E_new)
-    else
-        F_old = last(Es)
-        F_new = (g_new - g_old) * (η₀ - train.ρ + 1.) + F_old
-        push!(Es, F_new)
+            integrator.p.current_phase = MaxB
+
+            # append to Es since switching from η to ζ (it's actually F)
+            newF = (η₀ - train.ρ + 1.) * (train.U̲(v) - r(train, v) + g(track, integrator.t)) - train.ρ * E(train, integrator.p.W, v)
+            push!(Es, newF)
+        elseif index == 3   # terminate because of low speed
+            terminate!(integrator)
+        end
     end
-end
 
-odeprob = ODEProblem(_odefun, s0, xspan, simparams)
+    # discrete callback to update Es to ensure continuity of η
+    grade_change_condition(s, x, integrator) = x in integrator.p.eetcprob.track.x_gradient
 
-# setup callbacks
-const VECTOR_CB_LENGTH = 3
-vector_cont_cb = VectorContinuousCallback(
-    mode_switch_condition,
-    mode_switch_affect_pos!,
-    mode_switch_affect_neg!,
-    VECTOR_CB_LENGTH,
-    save_positions = (false, false),
-    rootfind = SciMLBase.LeftRootFind
-)
-
-# saving callback
-saved_vals = SavedValues(Float64, Vector{Union{Float64, Mode}})  # time type, η type
-function saving_func(s, x, integrator)
-    if x in integrator.p.eetcprob.track.x_gradient
-        [calculate_η(s, integrator.tprev, integrator.p), integrator.p.current_phase]
-    else
-        [calculate_η(s, x, integrator.p), integrator.p.current_phase]
+    function grade_change_aff!(integrator)
+        params = integrator.p
+        track = params.eetcprob.track
+        train = params.eetcprob.train
+        Es = params.Es
+        η₀ = calculate_η(integrator.u, integrator.tprev, params)   # current η
+        g_old = g(track, integrator.t - 0.1)
+        g_new = g(track, integrator.t + 0.1)
+        if params.current_phase != MaxB
+            E_old = last(Es)
+            E_new = (g_new - g_old) * η₀ + E_old
+            push!(Es, E_new)
+        else
+            F_old = last(Es)
+            F_new = (g_new - g_old) * (η₀ - train.ρ + 1.) + F_old
+            push!(Es, F_new)
+        end
     end
+
+    odeprob = ODEProblem(_odefun, s0, xspan, simparams)
+
+    # setup callbacks
+    vector_cont_cb = VectorContinuousCallback(
+        mode_switch_condition,
+        mode_switch_affect_pos!,
+        mode_switch_affect_neg!,
+        VECTOR_CB_LENGTH,
+        save_positions = (false, false),
+        rootfind = SciMLBase.LeftRootFind
+    )
+
+    # saving callback
+    saved_vals = SavedValues(Float64, Vector{Union{Float64, Mode}})  # time type, η type
+    function saving_func(s, x, integrator)
+        if x in integrator.p.eetcprob.track.x_gradient
+            [calculate_η(s, integrator.tprev, integrator.p), integrator.p.current_phase]
+        else
+            [calculate_η(s, x, integrator.p), integrator.p.current_phase]
+        end
+    end
+    saving_cb = SavingCallback(saving_func, saved_vals)
+
+    # discrete callback
+    grade_cb = DiscreteCallback(grade_change_condition, grade_change_aff!,
+        save_positions = (false, false))
+
+    cb_set = CallbackSet(vector_cont_cb, saving_cb, grade_cb)
+
+    odesol = OrdinaryDiffEq.solve(odeprob, AutoVern7(Rodas5()),
+        callback = cb_set,
+        dtmax = 3.,
+        tstops = track.x_gradient,
+        d_discontinuities = track.x_gradient,)
+
+    η_and_mode = saved_vals.saveval |> stack
+    η = η_and_mode[1,:][:]
+    η = Vector{Float64}(η)
+    modes = η_and_mode[2,:][:]
+    modes = Vector{Mode}(modes)
+
+    x_mode_switch = [0.; odesol.t[findall(k -> modes[k] != modes[k-1], 2:length(modes)) .+ 1]]
+    modes_sequence = modes[[1; findall(k -> modes[k] != modes[k-1], 2:length(modes)) .+ 1]]
+
+    control = function (x)
+        current_phase = modes_sequence[searchsortedlast(x_mode_switch, x)]
+        if current_phase == MaxP
+            simparams.eetcprob.train.U̅(odesol(x)[2])
+        elseif current_phase == Coast
+            zero(x)
+        elseif current_phase == MaxB
+            simparams.eetcprob.train.U̲(odesol(x)[2])
+        end
+    end
+
+    otc_sol = OTCSolution(
+        odesol,
+        x_mode_switch,
+        modes_sequence,
+        control,
+        η    
+    )
 end
-saving_cb = SavingCallback(saving_func, saved_vals)
 
-# discrete callback
-grade_cb = DiscreteCallback(grade_change_condition, grade_change_aff!,
-    save_positions = (false, false))
+# simulate
+otc_sol = simulate_regular_forward(simparams, xspan, s0)
+odesol = otc_sol.odesol
+η = otc_sol.η
 
-cb_set = CallbackSet(vector_cont_cb, saving_cb, grade_cb)
-
-odesol = OrdinaryDiffEq.solve(odeprob, AutoVern7(Rodas5()),
-    callback = cb_set,
-    dtmax = 3.,
-    tstops = track.x_gradient,
-    d_discontinuities = track.x_gradient,)
-
-η_and_mode = saved_vals.saveval |> stack
-η = η_and_mode[1,:][:]
-modes = η_and_mode[2,:][:]
-modes = Vector{Mode}(modes)
-
-plot(odesol.t, modes .|> Int)
+# plot(odesol.t, modes)
 plot(odesol.t, η)
 # plot(η, odesol[2,:])

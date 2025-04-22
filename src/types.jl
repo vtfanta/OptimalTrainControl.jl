@@ -1,6 +1,6 @@
 using OrdinaryDiffEq
 
-export Mode, Train, Track, OTCSolution, TOTCProblem, EETCProblem
+export Mode, Train, Track, OTCSolution, TOTCProblem, EETCProblem, EETCSimParams
 export MaxP, HoldP, HoldR, Coast, MaxB, HoldP_SL, HoldR_SL
 export Port
 
@@ -191,21 +191,26 @@ Formulate an energy-efficient train control problem.
 #     initial_speed::V = 1.
 #     Es::Vector{W} = Float64[]
 # end
-@kwdef mutable struct EETCProblem{TV,S,U<:Real,F1,F2,V<:AbstractFloat,W<:AbstractFloat}
-    T::V
-    train::Train{TV,S,F1,F2}
-    track::Track{U}
-    current_phase::Mode = MaxP
-    initial_speed::V = 1.
-    Es::Vector{W} = Float64[]
+@kwdef mutable struct EETCProblem{S<:Real,F1,F2}
+    T::S
+    train::Train{S,S,F1,F2}
+    track::Track{S}
+    initial_speed::S = one(S)
 end
 
-EETCProblem(T, train, track, mode) = EETCProblem(T, train, track, mode, 1., Float64[])
-EETCProblem(T, train, track) = EETCProblem(T, train, track, MaxP)
+EETCProblem(T, train, track) = EETCProblem(T, train, track, one(typeof(T)))
 
 @kwdef struct Port{T<:AbstractFloat}
     start::T
     finish::T
     mode::Mode
     speed::T
+end
+
+mutable struct EETCSimParams{S<:Real,F1,F2}
+    eetcprob::EETCProblem{S,F1,F2}
+    V::S
+    W::S
+    Es::Vector{S}
+    current_phase::Mode
 end

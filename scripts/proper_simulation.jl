@@ -13,19 +13,6 @@ using StaticArrays
 
 const VECTOR_CB_LENGTH = 3
 
-module ParamsWrapper
-    using OptimalTrainControl
-    mutable struct EETCSimParams{T<:Real}
-        eetcprob::EETCProblem
-        V::T
-        W::T
-        Es::Vector{T}
-        current_phase::Mode
-    end
-end
-
-EETCSimParams = ParamsWrapper.EETCSimParams # TODO remove this wrapper, WARNING
-
 # define the track
 γ2grade(γ) = (-γ / 9.81) / sqrt(1 - (γ / 9.81)^2)
 γs = [0, -0.2, 0, -0.26, 0]
@@ -97,8 +84,6 @@ end
 # define the EETC problem
 total_time = 500.
 prob = EETCProblem(total_time, train, track)
-# prob.Es = [Es1]             # TODO remove from EETCProblem struct
-prob.current_phase = MaxP   # TODO remove from EETCProblem struct
 prob.initial_speed = V
 
 simparams = EETCSimParams(prob, V, OptimalTrainControl.calculate_W(prob, V), [0.], MaxP)
@@ -330,4 +315,4 @@ function prof_g(n, simparams, xspan, s0)
     end
 end
 
-@profview_allocs prof_g(10, simparams, xspan, s0)
+@profview_allocs prof_g(100, simparams, xspan, s0)

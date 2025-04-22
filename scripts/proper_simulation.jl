@@ -47,8 +47,8 @@ EETCSimParams = ParamsWrapper.EETCSimParams # TODO remove this wrapper, WARNING
 #     x_gradient = [0., 1.5e3, 4e3, 4.4e3, 5.5e3],
 #     gradient = γ2grade.([0., -0.025, 0., -0.03, 0.])
 # )
-track = Track(
-    length = 4e3,
+track = OptimalTrainControl.Track(
+    4e3,
     x_gradient = [0., 1e3, 1.8e3, 1.9e3, 3.1e3],
     gradient = γ2grade.([0., -0.03, 0., 0.03, 0.])
 )
@@ -152,16 +152,17 @@ function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
         end
     end
 
+    val::T = zero(T)
     if phase == MaxP
-        val = (E(train, V, v) + last(Es)) / 
+            val = (E(train, V, v) + Es[end]) / 
             (train.U̅(v) - OptimalTrainControl.r(train, v) + g(track, x))
     elseif phase == Coast
-        val = (E(train, V, v) + last(Es)) / 
+        val = (E(train, V, v) + Es[end]) / 
             (- OptimalTrainControl.r(train, v) + g(track, x))
     elseif phase == MaxB
         # have to calculate ζ, the Fs are also in the EETC.Es array
         # TODO can E be found such that I dont have to store F instead?
-        val = (train.ρ*E(train, W, v) + last(Es)) /
+        val = (train.ρ*E(train, W, v) + Es[end]) /
             (train.U̲(v) - OptimalTrainControl.r(train, v) + g(track, x))
         # η = ζ + ρ - 1
         val += train.ρ - 1.

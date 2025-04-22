@@ -26,7 +26,7 @@ function solve(p::TOTCProblem)
         SA[ds1, ds2]
     end
 
-    if isnothing(p.track.x_gradient) # is level track
+    if isempty(p.track.x_gradient) # is level track
         xspan = (0., p.track.length)
     else # is hilly track
         xspan = (p.track.x_gradient[1], p.track.x_gradient[1] + p.track.length)

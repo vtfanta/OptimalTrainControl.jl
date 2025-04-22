@@ -71,7 +71,7 @@ end
     # xlabel --> "Distance (m)"
     # ylabel --> "Altitude (m)"
 
-    if isnothing(track.x_gradient)
+    if isempty(track.x_gradient)
         X = [0.]
         @info "Plotting a flat track."
     else

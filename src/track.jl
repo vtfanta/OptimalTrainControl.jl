@@ -1,5 +1,7 @@
 export r, g, isvalidposition, gradient, speedlimit, altitude, segmentize!, length
 
+const GRAV_ACC = 9.81
+
 """
     length(track::Track)
 
@@ -14,7 +16,7 @@ Return resistance specific force of `train` at given `speed`.
 
 The resistance specific force (per unit mass, i.e. acceleration) is positive and calculated as `train.r[1] + train.r[2] * v + train.r[3] * v^2`.
 """
-function r(train::Train, v::T) where {T<:Real}
+@inline function r(train::Train, v::T) where {T<:Real}
     train.r[1] + train.r[2] * v + train.r[3] * v^2
 end
 
@@ -23,12 +25,12 @@ end
 
 Return gravitational acceleration component at `position` regarding the gradient of `track`.
 """
-function g(track::Track, x::T) where {T<:Real}
+@inline function g(track::Track, x::T) where {T<:Real}
     if !isvalidposition(track, x)
         throw(ArgumentError("Position $(x) out of bounds."))
     end
 
-    -9.81 * sin(atan(gradient(track, x)))
+    -GRAV_ACC * sin(atan(gradient(track, x)))
 end
 
 """
@@ -54,7 +56,7 @@ function gradient(t::Track, position::T) where {T <: Real}
     if !isvalidposition(t, position)
         throw(ArgumentError("Position $(position) out of bounds."))
     end
-    isnothing(t.x_gradient) && return(0.)
+    isempty(t.x_gradient) && return(0.)
     
     return t.gradient[searchsortedlast(t.x_gradient, position)]
 end
@@ -68,7 +70,7 @@ function speedlimit(t::Track, position::T) where {T <: Real}
     if !isvalidposition(t, position)
         throw(ArgumentError("Position $(position) out of bounds."))
     end
-    isnothing(t.speedlimit) && return Inf
+    isempty(t.speedlimit) && return Inf
 
     t.speedlimit[searchsortedlast(t.x_speedlimit, position)]
 end
@@ -82,7 +84,7 @@ function altitude(t::Track, position::T) where {T <: Real}
     if !isvalidposition(t, position)
         throw(ArgumentError("Position $(position) out of bounds."))
     end
-    if isnothing(t.x_gradient)
+    if isempty(t.x_gradient)
         return t.altitude
     end
 
@@ -110,10 +112,10 @@ Modify `track.x_segments` such that its elements mark starts of
 track parts on which both gradient and speed limit are constant.
 """
 function segmentize!(t::Track) 
-    if isnothing(t.speedlimit) || isempty(t.speedlimit)
+    if isempty(t.speedlimit) || isempty(t.speedlimit)
         t.x_segments = t.x_gradient
     else
-        if !isnothing(t.x_gradient)
+        if !isempty(t.x_gradient)
             curr_x = t.x_gradient[1]
             @assert curr_x ≈ t.x_speedlimit[1] "First elements of `t.x_gradient` and t.x_speedlimit` do not align."
 

@@ -45,11 +45,11 @@ train = Train(
 
 See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref).
 """
-@kwdef struct Train{T<:Real,S<:Real,F1<:Function,F2<:Function}
+@kwdef struct Train{T<:Real,S<:Real,F1,F2}
     U̅::F1
     U̲::F2
     r::NTuple{3,T}
-    ρ::S = 0
+    ρ::S = zero(S)
 end
 
 # Train(U̅, U̲, r) = Train(U̅, U̲, r, 0)
@@ -89,15 +89,35 @@ hilly_track = Track(
 
 See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref).
 """
-@kwdef mutable struct Track{T<:Real, G<:Union{Nothing, Vector{T}},
-    S<:Union{Nothing, Vector{T}}}
+# @kwdef mutable struct Track1{T<:Real, G<:Union{Nothing, Vector{T}},
+#     S<:Union{Nothing, Vector{T}}}
+#     length::T
+#     altitude::T = 0.
+#     x_gradient::G = nothing
+#     gradient::G = nothing
+#     x_speedlimit::S = nothing
+#     speedlimit::S = nothing
+#     x_segments::Union{Nothing,Vector{Any}} = nothing
+# end
+
+@kwdef struct Track{T<:Real}
     length::T
-    altitude::T = 0.
-    x_gradient::G = nothing
-    gradient::G = nothing
-    x_speedlimit::S = nothing
-    speedlimit::S = nothing
-    x_segments::Union{Nothing,Vector{Any}} = nothing
+    altitude::T
+    x_gradient::Vector{T}
+    gradient::Vector{T}
+    x_speedlimit::Vector{T}
+    speedlimit::Vector{T}
+    x_segments::Vector{T}
+end
+
+function Track(length::T; 
+    altitude::T = zero(T), 
+    x_gradient::Vector{T} = T[],
+    gradient::Vector{T} = T[],
+    x_speedlimit::Vector{T} = T[],
+    speedlimit::Vector{T} = T[],
+    x_segments::Vector{T} = T[]) where {T<:Real}
+Track(length, altitude, x_gradient, gradient, x_speedlimit, speedlimit, x_segments)
 end
 
 # Track(l, a, xg, g, xsl, sl) = Track(l, a, xg, g, xsl, sl, nothing)
@@ -140,8 +160,8 @@ Formulate a time-optimal train control problem to be solved.
 - `current_phase::Mode = MaxP`: (mainly for internal purposes) starting control mode.
 - `initial_speed::Real = 1.`: starting speed; ``1 \\mathrm{m/s}``  is regarded as a stop.
 """
-@kwdef mutable struct TOTCProblem{T,S,U,V<:AbstractFloat}
-    train::Train{T,S}
+@kwdef mutable struct TOTCProblem{T,S,U,V<:AbstractFloat,F1,F2}
+    train::Train{T,S,F1,F2}
     track::Track{U}
     current_phase::Mode = MaxP
     initial_speed::V = 1.
@@ -163,10 +183,18 @@ Formulate an energy-efficient train control problem.
 - `initial_speed::Real = 1.`: starting speed; ``1`` m/s is regarded as a stop.
 - `Es::Vector{Real} = []`: (internal) vector of shifting constants used for calculation of the adjoint variable trajectory.
 """
-@kwdef mutable struct EETCProblem{TV,S,U,TG,TS,V<:AbstractFloat,W<:AbstractFloat}
+# @kwdef mutable struct EETCProblem{TV,S,U,TG,TS,V<:AbstractFloat,W<:AbstractFloat}
+#     T::V
+#     train::Train{TV,S}
+#     track::Track{U,TG,TS}
+#     current_phase::Mode = MaxP
+#     initial_speed::V = 1.
+#     Es::Vector{W} = Float64[]
+# end
+@kwdef mutable struct EETCProblem{TV,S,U<:Real,F1,F2,V<:AbstractFloat,W<:AbstractFloat}
     T::V
-    train::Train{TV,S}
-    track::Track{U,TG,TS}
+    train::Train{TV,S,F1,F2}
+    track::Track{U}
     current_phase::Mode = MaxP
     initial_speed::V = 1.
     Es::Vector{W} = Float64[]

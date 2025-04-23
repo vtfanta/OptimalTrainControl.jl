@@ -125,6 +125,33 @@ end
 # To allow broadcasting
 Base.broadcastable(t::Track) = Ref(t)
 
+struct ConcreteControlFunction{T<:Real,S<:Real,F1,F2,O<:OrdinaryDiffEq.ODESolution}
+    x_mode_switch::Vector{T}
+    modes_sequence::Vector{Mode}
+    odesol::O
+    train::Train{T,S,F1,F2}
+end
+
+function (u::ConcreteControlFunction)(x::T) where {T<:Real}
+    current_phase = u.modes_sequence[searchsortedlast(u.x_mode_switch, x)]
+    if current_phase == MaxP
+        return (T)(u.train.U̅(odesol(x)[2]))
+    elseif current_phase == Coast
+        return zero(x)
+    elseif current_phase == MaxB
+        return (T)(u.train.U̲(odesol(x)[2]))
+    end
+end
+
+function create_concrete_control_function(
+    x_mode_switch::Vector{T},
+    modes_sequence::Vector{Mode},
+    odesol::OrdinaryDiffEq.ODESolution,
+    train::Train{T,S,F1,F2}) where {T<:Real,S<:Real,F1,F2}
+
+    ConcreteControlFunction(x_mode_switch, modes_sequence, odesol, train)
+end
+
 """
     sol1::OTCSolution = solve(p1::TOTCProblem)
     sol2::OTCSolution = solve(p2::EETCProblem)
@@ -140,14 +167,14 @@ Is returned as a result of solving a `TOTCProblem` or a `EETCProblem`.
 
 See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref), [`Mode`](@ref).
 """
-struct OTCSolution{T<:Real,S<:Union{Nothing,Vector{<:Real}},F<:Function}
+struct OTCSolution{T<:Real,S<:Real,F1,F2,O<:OrdinaryDiffEq.ODESolution}
     odesol::OrdinaryDiffEq.ODESolution
     x_phases::Vector{T}
     phases::Vector{Mode}
-    control::F
-    η::S
+    control::ConcreteControlFunction{T,S,F1,F2,O}
+    η::Vector{T}
 end
-OTCSolution(sol, x_phases, phases, control) = OTCSolution(sol, x_phases, phases, control, nothing)
+OTCSolution(sol, x_phases, phases, control) = OTCSolution(sol, x_phases, phases, control, eltype(x_phases)[])
 
 """
     prob = TOTCProblem(;train::Train, track::Track, <keyword arguments>)

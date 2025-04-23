@@ -107,7 +107,6 @@ function _odefun(s::A, p::EETCSimParams, x) where {T<:Real, A<:AbstractArray{T,1
     elseif phase == MaxB
         u = eetcprob.train.U̲(v)
     end
-    # @show u
 
     ds1 = 1/v
     ds2 = (u - OptimalTrainControl.r(eetcprob.train, v) + OptimalTrainControl.g(eetcprob.track, x)) / v
@@ -146,7 +145,6 @@ function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
             (- OptimalTrainControl.r(train, v) + g(track, x))
     elseif phase == MaxB
         # have to calculate ζ, the Fs are also in the EETC.Es array
-        # TODO can E be found such that I dont have to store F instead?
         val = (train.ρ*E(train, W, v) + Es[end]) /
             (train.U̲(v) - OptimalTrainControl.r(train, v) + g(track, x))
         # η = ζ + ρ - 1
@@ -155,19 +153,16 @@ function calculate_η(s, x, p::EETCSimParams{T}) where {T<:Real}
     return val
 end
 
-function simulate_regular_forward(sparams::EETCSimParams, xspan::Tuple{T, T}, s0::SVector{2, T}) where {T<:Real}
+function simulate_regular_forward(sparams::EETCSimParams{T,F1,F2}, xspan::Tuple{T, T}, s0::SVector{2, T}) where {T<:Real, F1, F2}
     
     # to prevent mutating
     simparams = deepcopy(sparams)
 
-    function mode_switch_condition(out, s, x, integrator)
+    function mode_switch_condition(out::A, s::B, x::T, integrator) where {T<:Real,A<:AbstractArray{T,1}, B<:AbstractArray{T,1}}
         _, v = s
         p = integrator.p
         η = calculate_η(s, x, p)
 
-        # @show x, integrator.t, integrator.tprev
-        # @show any(x .≈ p.eetcprob.track.x_gradient)
-        # @show calculate_η(s, x, p), calculate_η(s, integrator.t, p), calculate_η(s, integrator.tprev, p)
         out[1] = η  # boundary between MaxP and Coast
         out[2] = η - (p.eetcprob.train.ρ - 1.)    # boundary between Coast and MaxB
         # TODO should I add terminating condition?
@@ -235,7 +230,7 @@ function simulate_regular_forward(sparams::EETCSimParams, xspan::Tuple{T, T}, s0
         end
     end
 
-    odeprob = ODEProblem(_odefun, s0, xspan, simparams)
+    odeprob = ODEProblem{false}(_odefun, s0, xspan, simparams)
 
     # setup callbacks
     vector_cont_cb = VectorContinuousCallback(
@@ -248,7 +243,7 @@ function simulate_regular_forward(sparams::EETCSimParams, xspan::Tuple{T, T}, s0
     )
 
     # saving callback
-    saved_vals = SavedValues(Float64, Vector{Union{Float64, Mode}})  # time type, η type
+    saved_vals = SavedValues(eltype(xspan), Vector{Union{eltype(xspan), Mode}})  # time type, η type
     function saving_func(s, x, integrator)
         if x in integrator.p.eetcprob.track.x_gradient
             [calculate_η(s, integrator.tprev, integrator.p), integrator.p.current_phase]
@@ -267,30 +262,32 @@ function simulate_regular_forward(sparams::EETCSimParams, xspan::Tuple{T, T}, s0
     odesol = OrdinaryDiffEq.solve(odeprob, AutoVern7(Rodas5()),
         callback = cb_set,
         dtmax = 3.,
-        tstops = track.x_gradient,
-        d_discontinuities = track.x_gradient,)
+        tstops = simparams.eetcprob.track.x_gradient,
+        d_discontinuities = simparams.eetcprob.track.x_gradient)
 
-    η_and_mode = saved_vals.saveval |> stack
-    η = η_and_mode[1,:][:]
-    η = Vector{Float64}(η)
-    modes = η_and_mode[2,:][:]
-    modes = Vector{Mode}(modes)
+    η_and_mode = saved_vals.saveval
 
-    x_mode_switch = [0.; odesol.t[findall(k -> modes[k] != modes[k-1], 2:length(modes)) .+ 1]]
-    modes_sequence = modes[[1; findall(k -> modes[k] != modes[k-1], 2:length(modes)) .+ 1]]
-
-    control = function (x)
-        current_phase = modes_sequence[searchsortedlast(x_mode_switch, x)]
-        if current_phase == MaxP
-            simparams.eetcprob.train.U̅(odesol(x)[2])
-        elseif current_phase == Coast
-            zero(x)
-        elseif current_phase == MaxB
-            simparams.eetcprob.train.U̲(odesol(x)[2])
-        end
+    sol_length = length(odesol.t)
+    η = Vector{eltype(xspan)}(undef, sol_length)
+    modes = Vector{Mode}(undef, sol_length)
+    for i in 1:sol_length
+        η[i] = η_and_mode[i][1]
+        modes[i] = η_and_mode[i][2]
     end
 
-    otc_sol = OTCSolution(
+    indices = [1; findall(k -> modes[k] != modes[k-1], 2:length(modes)) .+ 1]
+    x_mode_switch = [0.0; odesol.t[indices]]
+    x_mode_switch = Vector{eltype(xspan)}(x_mode_switch)
+    modes_sequence = modes[indices]
+
+    control = OptimalTrainControl.create_concrete_control_function(
+        x_mode_switch,
+        modes_sequence,
+        odesol,
+        simparams.eetcprob.train
+    )
+
+    OTCSolution(
         odesol,
         x_mode_switch,
         modes_sequence,

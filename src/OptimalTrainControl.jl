@@ -12,6 +12,9 @@ include("time_optimal.jl")
 # Solving energy-optimal train control on a flat track
 include("optimal_flat.jl")
 
+# Simulation-related functions for regular phases and η calculation
+include("simulation.jl")
+
 # Solving energy-optimal train control on a track with gradients
 include("energy_optimal.jl")
 

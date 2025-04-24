@@ -210,14 +210,6 @@ Formulate an energy-efficient train control problem.
 - `initial_speed::Real = 1.`: starting speed; ``1`` m/s is regarded as a stop.
 - `Es::Vector{Real} = []`: (internal) vector of shifting constants used for calculation of the adjoint variable trajectory.
 """
-# @kwdef mutable struct EETCProblem{TV,S,U,TG,TS,V<:AbstractFloat,W<:AbstractFloat}
-#     T::V
-#     train::Train{TV,S}
-#     track::Track{U,TG,TS}
-#     current_phase::Mode = MaxP
-#     initial_speed::V = 1.
-#     Es::Vector{W} = Float64[]
-# end
 @kwdef mutable struct EETCProblem{S<:Real,F1,F2}
     T::S
     train::Train{S,S,F1,F2}

@@ -8,7 +8,7 @@ train = Train(
 )
 
 track = Track(
-    length = 300.,
+    300.,
     altitude = 100.,
     x_gradient = collect(0.:1.:300.),
     gradient = 5e-2*sin.(collect(0.:1.:300.)./20.)

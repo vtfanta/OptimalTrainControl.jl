@@ -26,7 +26,7 @@ train = Train(
 The only required argument for a `Track` is its length, however one can also specify its altitude and points of changing track grade.
 ```julia
 track = Track(
-    length = 3e3,
+    3e3,
     altitude = 100.,
     x_gradient = [0.0, 1e3, 1.7e3],
     gradient = [2e-3, 0., 1e-3]
@@ -56,9 +56,7 @@ The problem is to minimize the functional $J$ while also satisfying the requirem
 
 Let's construct a $5\ \mathrm{km}$ flat track,
 ```julia
-track = Track(
-    length = 5e3
-)
+track = Track(5e3)
 ```
 and a train (the fourth argument is $\rho$):
 ```julia

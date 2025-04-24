@@ -23,7 +23,7 @@ An Enum useful for specifying the five possible control modes:
 end    
 
 """
-    train = Train(U̅, U̲, r, ρ = 0)
+    train = Train(U̅, U̲, r, ρ = 0.)
 
 Defines a `train` to be used in `TOTCProblem` or `EETCProblem` construction
 
@@ -31,7 +31,7 @@ Defines a `train` to be used in `TOTCProblem` or `EETCProblem` construction
 - `U̅::Function`: maximum traction specific force (per unit mass, i.e. acceleration) as a function of speed.
 - `U̲::Function`: minimum traction specific force (braking, per unit mass, i.e. acceleration) as a function of speed.
 - `r::Tuple`: triplet of coefficients defining resistance of the `train` as a quadratic function of the speed `resistance(v) = r[1] + r[2]v + r[3]v^2 `.
-- `ρ::Real = 0`: regeneration coefficient ``ρ ∈ [0,1]`` specifying proportion of braking speed recovered (0 means no regeneration, 1 means all braking energy regenerated).
+- `ρ::Real = 0.`: regeneration coefficient ``ρ ∈ [0,1]`` specifying proportion of braking speed recovered (0 means no regeneration, 1 means all braking energy regenerated).
 
 # Example
 ```julia
@@ -58,11 +58,9 @@ end
 Base.broadcastable(t::Train) = Ref(t)
 
 """
-    track = Track(;length <keyword arguments>)
+    track = Track(length; <keyword arguments>)
 
 Defines a `track` to be used in `TOTCProblem` or `EETCProblem` construction
-
-
 
 # Arguments
 - `altitude::Real`: altitude of the start of the `track`.
@@ -74,13 +72,13 @@ Defines a `track` to be used in `TOTCProblem` or `EETCProblem` construction
 # Examples
 ```julia
 # Flat track
-flat_track = Track(length = 1e3)
+flat_track = Track(1e3) # 1 km long
 ```
 
 ```julia
 # Hilly track
 hilly_track = Track(
-    length = 3e3,
+    3e3;
     altitude = 100.,
     x_gradient = [0.0, 1e3, 1.7e3],
     gradient = [2e-3, 0., 1e-3]
@@ -89,17 +87,6 @@ hilly_track = Track(
 
 See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref).
 """
-# @kwdef mutable struct Track1{T<:Real, G<:Union{Nothing, Vector{T}},
-#     S<:Union{Nothing, Vector{T}}}
-#     length::T
-#     altitude::T = 0.
-#     x_gradient::G = nothing
-#     gradient::G = nothing
-#     x_speedlimit::S = nothing
-#     speedlimit::S = nothing
-#     x_segments::Union{Nothing,Vector{Any}} = nothing
-# end
-
 @kwdef mutable struct Track{T<:Real}
     length::T
     altitude::T
@@ -119,8 +106,6 @@ function Track(length::T;
     x_segments::Vector{T} = T[]) where {T<:Real}
 Track(length, altitude, x_gradient, gradient, x_speedlimit, speedlimit, x_segments)
 end
-
-# Track(l, a, xg, g, xsl, sl) = Track(l, a, xg, g, xsl, sl, nothing)
 
 # To allow broadcasting
 Base.broadcastable(t::Track) = Ref(t)
@@ -162,7 +147,7 @@ Is returned as a result of solving a `TOTCProblem` or a `EETCProblem`.
 - `odesol::SciMLBase.ODESolution`: solution of the differential equation coming from DifferentialEquations.jl package. The states are `[time, speed]` and are accessed with e.g. `sol1.u`. The distances along the track are accessed via e.g. `sol1.t`. The interpolation functionality should behave as expected although this is not guaranteed since the problem has multiple phases.
 - `x_phases::Vector{Real}`: sequence of positions at which control modes (see [`Mode`](@ref)) changes.
 - `phases::Vector{Mode}`: sequence of control modes (see [`Mode`](@ref)).
-- `control::Function`: optimal control as a function of distance along the track.
+- `control::ConcreteControlFunction`: optimal control callable as a function of distance along the track, u(x).
 - `η::Vector{Real}`: trajectory of the adjoint variable determining the current control mode (see [`Mode`](@ref)).
 
 See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref), [`Mode`](@ref).
@@ -177,7 +162,7 @@ end
 OTCSolution(sol, x_phases, phases, control) = OTCSolution(sol, x_phases, phases, control, eltype(x_phases)[])
 
 """
-    prob = TOTCProblem(;train::Train, track::Track, <keyword arguments>)
+    prob = TOTCProblem(train::Train, track::Track, current_phase::Mode = MaxP, initial_speed::Real = 1.)
 
 Formulate a time-optimal train control problem to be solved.
 
@@ -198,7 +183,7 @@ TOTCProblem(train, track) = TOTCProblem(train, track, MaxP, 1.)
 TOTCProblem(train, track, mode) = TOTCProblem(train, track, mode, 1.)
 
 """
-    prob = EETCProblem(; T, train, track, <keyword arguments>)
+    prob = EETCProblem(T, train, track, initial_speed = 1.)
 
 Formulate an energy-efficient train control problem.
 
@@ -206,9 +191,7 @@ Formulate an energy-efficient train control problem.
 - `T::Real`: total time of the trip.
 - `train::Train`: train specification for the problem.
 - `track::Track`: track specification for the problem.
-- `current_phase::Mode = MaxP`: (mainly for internal purposes) starting control mode.
 - `initial_speed::Real = 1.`: starting speed; ``1`` m/s is regarded as a stop.
-- `Es::Vector{Real} = []`: (internal) vector of shifting constants used for calculation of the adjoint variable trajectory.
 """
 @kwdef mutable struct EETCProblem{S<:Real,F1,F2}
     T::S

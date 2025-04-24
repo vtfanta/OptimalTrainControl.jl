@@ -2,9 +2,7 @@ using OptimalTrainControl
 using Plots
 using StaticArrays
 
-track = Track(
-    length = 5e3
-)
+track = Track(5e3)
 
 train = Train(
     v -> 1/v,

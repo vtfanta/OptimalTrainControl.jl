@@ -2,7 +2,7 @@ using OptimalTrainControl
 using Plots
 
 track = Track(
-    length = 5e3,
+    5e3,
     altitude = 10.,
     x_gradient = [0., 2e3, 3e3, 4e3],
     gradient = [0., 35/1e3, 0., -35/1e3],

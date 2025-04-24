@@ -4,7 +4,7 @@ using Test
 
 @testset "Track utilities" begin
     t = Track(
-        length = 1e3,
+        1e3;
         altitude = 100.0,
         x_gradient = [0.0, 200.0, 500.0],
         gradient = [0.0, 1.0, 2.0],
@@ -57,7 +57,7 @@ end
     )
 
     track = Track(
-        length = 300.,
+        300.;
         altitude = 100.,
         x_gradient = [0.0],
         gradient = [0.]
@@ -78,7 +78,7 @@ end
         )
 
     track = Track(
-        length = 300.,
+        300.;
         altitude = 100.,
         x_gradient = collect(0.:1.:300.),
         gradient = 5e-2*sin.(collect(0.:1.:300.)./20.)
@@ -100,9 +100,9 @@ end
             r = (6.75e-3, 0., 5e-5)
         )
 
-    track = Track(length = 5e3)
+    track = Track(5e3)
 
-    prob = EETCProblem(; T, train, track)
+    prob = EETCProblem(T, train, track)
     sol = solve(prob)
     
     @test isapprox(sol.odesol[1,end], T; atol = 5.)
@@ -134,7 +134,7 @@ end
     
     # with speed limits
     track = Track(
-        length = 5e3,
+        5e3;
         altitude = 10.,
         x_gradient = [0., 2e3, 3e3, 4e3],
         gradient = [0., 35/1e3, 0., -35/1e3],
@@ -165,7 +165,7 @@ end
 
     # without speed limits
     track = Track(
-        length = 5e3,
+        5e3;
         altitude = 10.,
         x_gradient = [0., 2e3, 3e3, 4e3],
         gradient = [0., 35/1e3, 0., -35/1e3]

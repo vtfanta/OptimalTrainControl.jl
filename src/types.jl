@@ -49,7 +49,7 @@ See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref).
     U̅::F1
     U̲::F2
     r::NTuple{3,T}
-    ρ::S = zero(S)
+    ρ::S = zero(Float64)
 end
 
 # Train(U̅, U̲, r) = Train(U̅, U̲, r, 0)
@@ -100,7 +100,7 @@ See also [`TOTCProblem`](@ref), [`EETCProblem`](@ref).
 #     x_segments::Union{Nothing,Vector{Any}} = nothing
 # end
 
-@kwdef struct Track{T<:Real}
+@kwdef mutable struct Track{T<:Real}
     length::T
     altitude::T
     x_gradient::Vector{T}

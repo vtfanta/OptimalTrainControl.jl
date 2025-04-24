@@ -8,14 +8,15 @@ export φ, ψ, E
 @inline ψ(train::Train, v) = (train.r[2] + 2train.r[3]*v) * v^2
 @inline E(train::Train, V, v) = ψ(train, V)/v + OptimalTrainControl.r(train, v)
 
-function _odefun_flat(s::A, p::EETCProblem, x::T) where {T<:Real, A<:AbstractArray{T,1}}
-    t, v = s
+function _odefun_flat(s::A, params::Tuple{EETCProblem,Mode}, x::T) where {T<:Real, A<:AbstractArray{T,1}}
+    _, v = s
+    p, current_phase = params
 
-    if p.current_phase == MaxP
+    if current_phase == MaxP
         u = p.train.U̅(v)
-    elseif p.current_phase == Coast
+    elseif current_phase == Coast
         u = 0.
-    elseif p.current_phase == MaxB
+    elseif current_phase == MaxB
         u = p.train.U̲(v)
     end
     # @show u
@@ -40,10 +41,10 @@ function __solve(p::EETCProblem{A,F1,F2}, V::A, V′::A) where {A<:AbstractFloat
     lowspeed_cb = ContinuousCallback(lowspeed_cond, lowspeed_aff)
     cbs = CallbackSet(targetspeed_cb, lowspeed_cb)
 
-    maxprob = EETCProblem(p.T, p.train, p.track, MaxP)
+    maxprob = EETCProblem(p.T, p.train, p.track)
     s0 = SA[0., p.initial_speed]
     xspan = (0., p.track.length)
-    odeprob = ODEProblem(_odefun_flat, s0, xspan, maxprob)
+    odeprob = ODEProblem(_odefun_flat, s0, xspan, (maxprob, MaxP))
     odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t1 = odesol[1,:]
     v1 = odesol[2,:]
@@ -70,10 +71,10 @@ function __solve(p::EETCProblem{A,F1,F2}, V::A, V′::A) where {A<:AbstractFloat
     targetspeed2_cb = ContinuousCallback(targetspeed2_cond, targetspeed2_aff)
     cbs = CallbackSet(targetspeed2_cb, lowspeed_cb)
 
-    coastprob = EETCProblem(p.T, p.train, p.track, Coast)
+    coastprob = EETCProblem(p.T, p.train, p.track)
     s0 = SA[odesol[1,end], v1[end]]
     xspan = (x1[end], p.track.length)
-    odeprob = ODEProblem(_odefun_flat, s0, xspan, coastprob)
+    odeprob = ODEProblem(_odefun_flat, s0, xspan, (coastprob, Coast))
     odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t2 = odesol[1,:]
     v2 = odesol[2,:]
@@ -86,10 +87,10 @@ function __solve(p::EETCProblem{A,F1,F2}, V::A, V′::A) where {A<:AbstractFloat
     targetspeed3_cb = ContinuousCallback(targetspeed3_cond, targetspeed3_aff)
     cbs = CallbackSet(targetspeed3_cb, lowspeed_cb)
 
-    brakeprob = EETCProblem(p.T, p.train, p.track, MaxB)
+    brakeprob = EETCProblem(p.T, p.train, p.track)
     s0 = SA[t2[end], v2[end]]
     xspan = (x2[end], p.track.length)
-    odeprob = ODEProblem(_odefun_flat, s0, xspan, brakeprob)
+    odeprob = ODEProblem(_odefun_flat, s0, xspan, (brakeprob, MaxB))
     odesol = OrdinaryDiffEq.solve(odeprob, Tsit5(); callback = cbs, dtmax=100)
     t3 = odesol[1,:]
     v3 = odesol[2,:]
@@ -129,19 +130,8 @@ function _solve(p::EETCProblem{A,F1,F2}, V::A) where {A<:AbstractFloat,F1,F2}
 
         odeprob = ODEProblem(_odefun_flat, SA[0., 1.], (0., p.track.length), p)
         odesol = DiffEqBase.build_solution(odeprob, Tsit5(), xs, s_tot, retcode = ReturnCode.Success)
-
-        control = function (x)
-            current_phase = phases[searchsortedlast(x_phases, x)]
-            if current_phase == MaxP
-                p.train.U̅(odesol(x)[2])
-            elseif current_phase == HoldP
-                r(p.train, odesol(x)[2])
-            elseif current_phase == Coast
-                zero(x)
-            elseif current_phase == MaxB
-                p.train.U̲(odesol(x)[2])
-            end
-        end
+        
+        control = create_concrete_control_function(x_phases, phases, odesol, p.train)
 
         sol_tot = OTCSolution(
             odesol,
@@ -184,17 +174,8 @@ function _solve(p::EETCProblem{A,F1,F2}, V::A) where {A<:AbstractFloat,F1,F2}
 
         phases = [MaxP, Coast, MaxB]
         x_phases = [x1[1], x2[1], x3[1]]
-
-        control = function (x)
-            current_phase = phases[searchsortedlast(x_phases, x)]
-            if current_phase == MaxP
-                p.train.U̅(odesol(x)[2])
-            elseif current_phase == Coast
-                zero(x)
-            elseif current_phase == MaxB
-                p.train.U̲(odesol(x)[2])
-            end
-        end
+        
+        control = create_concrete_control_function(x_phases, phases, odesol, p.train)
 
         sol_tot = OTCSolution(
             odesol,

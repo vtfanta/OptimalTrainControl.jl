@@ -108,7 +108,7 @@ function load_ttobench_track(filename::AbstractString; which_stops::Tuple{Int, I
             g_g /= 100
         end
             
-        track = Track(;altitude, length = length, x_speedlimit = sl_x, speedlimit = sl_v,
+        track = Track(length, altitude = altitude, x_speedlimit = sl_x, speedlimit = sl_v,
             x_gradient = g_x, gradient = g_g)
     end
 

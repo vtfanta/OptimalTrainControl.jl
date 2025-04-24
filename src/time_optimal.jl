@@ -69,14 +69,16 @@ function solve(p::TOTCProblem)
     x_phases = [xspan[1], x_switch]
     phases = [MaxP, MaxB]
 
-    control = function(x)
-        current_phase = phases[searchsortedlast(x_phases, x)]
-        if current_phase == MaxP
-            p.train.U̅(sol(x)[2])
-        elseif current_phase == MaxB
-            p.train.U̲(sol(x)[2])
-        end
-    end
+    # control = function(x)
+    #     current_phase = phases[searchsortedlast(x_phases, x)]
+    #     if current_phase == MaxP
+    #         p.train.U̅(sol(x)[2])
+    #     elseif current_phase == MaxB
+    #         p.train.U̲(sol(x)[2])
+    #     end
+    # end
+    
+    control = OptimalTrainControl.create_concrete_control_function(x_phases, phases, sol, p.train)
 
     OTCSolution(sol, x_phases, phases, control)
 end

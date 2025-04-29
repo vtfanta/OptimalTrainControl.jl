@@ -187,3 +187,40 @@ end
     @test ports[2].mode == HoldR
     @test ports[1].start == track.x_gradient[1]
 end
+
+@testset "Simulation utils" begin
+    eetcprob = EETCProblem(
+        500.,
+        Train(
+            v -> 1/v,
+            v -> -1/v,
+            (1e-2, 0., 1.5e-5),
+            0.6
+        ),
+        Track(
+            5e3;
+            altitude = 10.,
+            x_gradient = [0., 2e3, 3e3, 4e3],
+            gradient = [0., 35/1e3, 0., -35/1e3]
+        )
+    )
+    
+    V, W = 10., 13.
+    Es = [0.1]
+    curr_phase = MaxP
+    pars = EETCSimParams(eetcprob, V, W, Es, curr_phase)
+    s = SA[0., 3.]
+    x = 1.1e3
+    @test OptimalTrainControl._odefun(s, pars, x) ≈ SA[1/s[2], (eetcprob.train.U̅(s[2]) - r(eetcprob.train, s[2]) + g(eetcprob.track, x)) / s[2]]
+    @test OptimalTrainControl.calculate_η(s, x, pars) ≈ (E(eetcprob.train, pars.V, s[2]) + Es[end]) / (eetcprob.train.U̅(s[2]) -r(eetcprob.train, s[2]) + g(eetcprob.track, x))
+
+    pars.current_phase = MaxB
+    @test OptimalTrainControl._odefun(s, pars, x) ≈ SA[1/s[2], (eetcprob.train.U̲(s[2]) - r(eetcprob.train, s[2]) + g(eetcprob.track, x)) / s[2]]
+
+    pars.current_phase = Coast
+    @test OptimalTrainControl._odefun(s, pars, x) ≈ SA[1/s[2], ( - r(eetcprob.train, s[2]) + g(eetcprob.track, x)) / s[2]]
+    @test OptimalTrainControl.calculate_η(s, x, pars) ≈ (E(eetcprob.train, pars.V, s[2]) + Es[end]) / (-r(eetcprob.train, s[2]) + g(eetcprob.track, x))
+    
+    @test sign(OptimalTrainControl.calculate_η(s, 1.999e3, pars)) == sign(OptimalTrainControl.calculate_η(s, 2.001e3, pars))
+    
+end

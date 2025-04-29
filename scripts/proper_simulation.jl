@@ -99,10 +99,10 @@ plot(odesol.t, η)
 # plot(η, odesol[2,:])
 
 ## Profiling
-function prof_g(n, simparams, xspan, s0)
-    for _ in 1:n
-        simulate_regular_forward(simparams, xspan, s0)
-    end
-end
+# function prof_g(n, simparams, xspan, s0)
+#     for _ in 1:n
+#         simulate_regular_forward(simparams, xspan, s0)
+#     end
+# end
 
-@profview_allocs prof_g(100, simparams, xspan, s0)
+# @profview_allocs prof_g(100, simparams, xspan, s0)

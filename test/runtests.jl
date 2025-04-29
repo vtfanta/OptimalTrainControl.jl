@@ -188,6 +188,52 @@ end
     @test ports[1].start == track.x_gradient[1]
 end
 
+@testset "Types" begin
+    track = Track(
+        5e3;
+        altitude = 10.,
+        x_gradient = [0., 2e3, 3e3, 4e3],
+        gradient = [0., 35/1e3, 0., -35/1e3]
+    )
+    xs = [10., 2.5e3, 4.2e3]
+    # to test broadcasting over Track
+    @test gradient.(track, xs) ≈ [0., 0.035, -0.035]
+    
+    # to test ConcreteControlFunction
+    eetcprob = EETCProblem(
+        500.,
+        Train(
+            v -> 1/v,
+            v -> -1/v,
+            (1e-2, 0., 1.5e-5),
+            0.6
+        ),
+        Track(
+            5e3;
+            altitude = 10.,
+            x_gradient = [0., 2e3, 3e3, 4e3],
+            gradient = [0., 35/1e3, 0., -35/1e3]
+        )
+    )
+    
+    V, W = 10., 13.
+    Es = [0.1]
+    curr_phase = MaxP
+    pars = EETCSimParams(eetcprob, V, W, Es, curr_phase)
+    s = SA[0., 3.]
+    xspan = (0., 100.)
+    otc_sol = OptimalTrainControl.simulate_regular_forward(pars, xspan, s)
+    u = OptimalTrainControl.ConcreteControlFunction(
+        [0., 10., 20.],
+        [MaxP, Coast, MaxB],
+        otc_sol.odesol,
+        eetcprob.train
+    )
+    @test u(0.) ≈ eetcprob.train.U̅(s[2])
+    @test u(15.) ≈ 0.
+    @test u(30.) ≈ eetcprob.train.U̲(otc_sol.odesol(30.)[2])
+end
+
 @testset "Simulation utils" begin
     eetcprob = EETCProblem(
         500.,
@@ -223,4 +269,5 @@ end
     
     @test sign(OptimalTrainControl.calculate_η(s, 1.999e3, pars)) == sign(OptimalTrainControl.calculate_η(s, 2.001e3, pars))
     
+
 end

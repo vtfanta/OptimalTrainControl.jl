@@ -120,11 +120,11 @@ end
 function (u::ConcreteControlFunction)(x::T) where {T<:Real}
     current_phase = u.modes_sequence[searchsortedlast(u.x_mode_switch, x)]
     if current_phase == MaxP
-        return (T)(u.train.U̅(odesol(x)[2]))
+        return (T)(u.train.U̅(u.odesol(x)[2]))
     elseif current_phase == Coast
         return zero(x)
     elseif current_phase == MaxB
-        return (T)(u.train.U̲(odesol(x)[2]))
+        return (T)(u.train.U̲(u.odesol(x)[2]))
     end
 end
 

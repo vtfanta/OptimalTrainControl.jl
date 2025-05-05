@@ -6,10 +6,16 @@ function calculate_W(p::EETCProblem, V::Real)
 end
 
 function hold_segments!(p::EETCProblem, V::T) where {T<:Real}
-    W = calculate_W(p, V)
+    if !iszero(p.train.ρ)
+        W = calculate_W(p, V)
+    end
     # Find points at which gradient and/or speed limit changes
-    segment_borders = segmentize!(p.track)
-    push!(segment_borders, p.track.length)
+    if isempty(p.track.x_segments)
+        segment_borders = segmentize!(p.track)
+        push!(segment_borders, p.track.length)
+    else
+        segment_borders = [p.track.x_segments; p.track.length]
+    end
 
     ports = Port[]
 
@@ -31,7 +37,7 @@ function hold_segments!(p::EETCProblem, V::T) where {T<:Real}
 
         # Find at which points the train can hold speed W with u < 0
         # These segments fulfill -r(W) + g(x) ≥ 0
-        elseif -r(p.train, W) + g(p.track, segstart + 0.1) ≥ 0
+        elseif !iszero(p.train.ρ) && -r(p.train, W) + g(p.track, segstart + 0.1) ≥ 0
 
             if speedlimit(p.track, segstart + 0.1) < W
                 push!(ports, Port(segstart, segment_borders[k+1], HoldR_SL, speedlimit(p.track, segstart + 0.1)))

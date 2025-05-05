@@ -18,6 +18,9 @@ include("simulation.jl")
 # Solving energy-optimal train control on a track with gradients
 include("energy_optimal.jl")
 
+# Linking ports
+include("linking.jl")
+
 # Plotting-related code
 include("plot_recipes.jl")
 

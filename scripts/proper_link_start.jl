@@ -28,28 +28,7 @@ T = 2600.
 eetcprob = EETCProblem(T, train, track, 2.)
 simparams = EETCSimParams(eetcprob, V, W, [0.], MaxP)
 
-function root_f(E1, eetcprob, V, W)
-# E1 = 0.
-    Es = [E1]
-    simparams = EETCSimParams(eetcprob, V, W, Es, MaxP)
-    otc_sol = simulate_regular_forward(simparams, (0., 1e3), SA[0., eetcprob.initial_speed]);
-    idx = searchsortedfirst(otc_sol.odesol[2,:], V)
-    if idx > length(otc_sol.odesol[2,:])
-        -Inf
-    else
-        otc_sol.η[idx]
-    end
-end
-
-e = Roots.find_zero(e -> root_f(e, eetcprob, V, W), [-30.,30.], atol=1e-6)
-# EETCSimParams(eetcprob, V, W, [-0.1], MaxP)
-# otc_sol = simulate_regular_forward(simparams, (0., 1e3), SA[0., eetcprob.initial_speed]);
-# plot(otc_sol)
-
-##
-simparams = EETCSimParams(eetcprob, V, W, [e], MaxP)
-con = OptimalTrainControl.LinkPortConditionModule.LinkPortCondition(0., 3e3, V)
-link_sol = OptimalTrainControl.simulate_link_forward(0., con, simparams, SA[0., eetcprob.initial_speed])
-
-using Plots
+port1 = Port(-Inf, 0., Coast, 12.)
+port2 = Port(0., 2e3, HoldP, V)
+link_sol = OptimalTrainControl.link(port1, port2, simparams)
 plot(link_sol)

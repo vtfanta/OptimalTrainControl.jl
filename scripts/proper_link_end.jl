@@ -29,7 +29,5 @@ T = 2600.
 eetcprob = EETCProblem(T, train, track, 2.)
 simparams = EETCSimParams(eetcprob, V, W, [0.], MaxP)
 
-port1 = Port(-Inf, 0., Coast, 12.)
-port2 = Port(0., 2e3, HoldP, V)
-link_sol = OptimalTrainControl.link(port1, port2, simparams)
-plot(link_sol)
+port1 = Port(25e3, length(track), Coast, 12.)
+port2 = Port(length(track), Inf, HoldP, V)

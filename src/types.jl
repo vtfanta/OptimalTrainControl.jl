@@ -125,6 +125,8 @@ function (u::ConcreteControlFunction)(x::T) where {T<:Real}
         return zero(x)
     elseif current_phase == MaxB
         return (T)(u.train.U̲(u.odesol(x)[2]))
+    elseif current_phase == HoldP   # ONLY FOR FLAT TRACK, g(x) = 0
+        return (T)(r(u.train, u.odesol(x)[2]))
     end
 end
 
@@ -215,4 +217,10 @@ mutable struct EETCSimParams{S<:Real,F1,F2}
     W::S
     Es::Vector{S}
     current_phase::Mode
+end
+function EETCSimParams(eetcprob::EETCProblem{S,F1,F2}, V::S, current_phase::Mode) where {S<:Real,F1,F2}
+    train, track = eetcprob.train, eetcprob.track
+    W = OptimalTrainControl.calculate_W(eetcprob, V)
+    Es = S[-1.]
+    EETCSimParams(eetcprob, V, W, Es, current_phase)
 end

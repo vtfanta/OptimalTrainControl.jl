@@ -221,3 +221,30 @@ function solve(p::EETCProblem{T,F1,F2}; atol = 5.) where {T<:Real,F1,F2}
 
     return _solve(p, opt_V)
 end
+
+function solve_get_dual(p::EETCProblem{T,F1,F2}; atol = 5.) where {T<:Real,F1,F2}
+    # On a flat track, the mode sequence goes as MaxP -> (HoldP) -> Coast -> MaxB
+
+    # Check feasibility of the problem
+    TOsol = solve(TOTCProblem(p.train, p.track))
+    # @show TOsol.odesol[1,end]
+    if TOsol.odesol[1,end] ≥ p.T
+        error("EETC problem infeasible due to the total time constraint ($(p.T) s < $(TOsol.odesol[1,end]) s).")
+    end
+
+    if abs(TOsol.odesol[1,end] - p.T) < 2.3 * atol
+        @warn "Unexpected behaviour may appear. The time constraint is close to theoretical bound."
+    end
+
+    # first guess of the holding speed
+    V = p.track.length / p.T 
+    
+    _f = function (V)
+        sol = _solve(p, V)
+        sol.odesol[1,end] - p.T
+    end
+
+    opt_V = Roots.find_zero(_f, V; atol)
+
+    return _solve(p, opt_V), opt_V  # modifiend to get the optimal V for λₜ
+end

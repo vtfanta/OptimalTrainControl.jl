@@ -1,3 +1,4 @@
+using DiffEqBase
 using Roots
 using StaticArrays
 

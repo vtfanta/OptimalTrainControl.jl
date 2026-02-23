@@ -2,11 +2,30 @@ using OrdinaryDiffEq
 using Roots
 
 module LinkPortConditionModule
+    using OptimalTrainControl
+
     struct LinkPortCondition{T<:Real}
         end_port_start::T
         end_port_finish::T
         end_port_speed::T
         end_port_η::T
+    end
+    
+    function makeLinkPortCondition(port2::OptimalTrainControl.Port, eetcprob::OptimalTrainControl.EETCProblem{T,F1,F2}) where {T<:Real,F1,F2}
+        target_speed = port2.speed
+
+        if port2.mode == HoldP || port2.mode == HoldP_SL
+            target_η = zero(T)
+        elseif port2.mode == HoldR || port2.mode == HoldR_SL
+            target_η = eetcprob.train.ρ - one(T)
+        end
+
+        LinkPortCondition{T}(
+            port2.start,
+            port2.finish,
+            target_speed,
+            target_η
+        )
     end
 end
 function (c::LinkPortConditionModule.LinkPortCondition)(s, x::T, integrator) where {T<:Real}
@@ -88,6 +107,7 @@ end
 function root_f_start(E1, eetcprob, V, W, cond::LinkPortConditionModule.LinkPortCondition{T}) where {T<:Real}
     Es = [E1]
     
+    # TODO fix this heuristic?
     if eetcprob.initial_speed > V
         initial_mode = Coast
     else    # eetcprob.initial_speed ≤ V
@@ -101,12 +121,23 @@ function root_f_start(E1, eetcprob, V, W, cond::LinkPortConditionModule.LinkPort
     retcode = otc_sol.odesol.retcode
 
     if retcode == SciMLBase.ReturnCode.Terminated && otc_sol.odesol[2,end] ≤ 0.5    # terminated, low speed
-        return +Inf        
+        val = sign(otc_sol.η[end])
+        # return +Inf
     elseif retcode == SciMLBase.ReturnCode.Terminated && abs(otc_sol.odesol[2,end] - V) ≤ 1e-2    # terminated, reached target speed
-        return η[end] - cond.end_port_η
+        val = η[end] - cond.end_port_η
     elseif retcode == SciMLBase.ReturnCode.Success  # reached end of target port
-        return +Inf
+        val = sign(otc_sol.η[end])
+        # return +Inf
+    else
+        @warn "Unexpected return code in root_f_start: $retcode"
+        val = NaN
     end
+    # if isnan(val)
+    #     @show otc_sol.odesol.retcode, otc_sol.odesol[2,end]
+    #     @show otc_sol.x_phases
+    # end
+    # @show val
+    val
 end
 
 # link starting port means finding such Es[1] that η has proper value at reaching target port with right speed
@@ -114,23 +145,32 @@ end
 function link_start(port2::Port{T}, simparams::EETCSimParams{T,F1,F2}; atol=1e-6) where {T<:Real,F1,F2}
     target_speed = port2.speed
 
-    if port2.mode == HoldP || port2.mode == HoldP_SL
-        target_η = zero(T)
-    elseif port2.mode == HoldR || port2.mode == HoldR_SL
-        target_η = simparams.eetcprob.train.ρ - one(T)
-    end
+    # if port2.mode == HoldP || port2.mode == HoldP_SL
+    #     target_η = zero(T)
+    # elseif port2.mode == HoldR || port2.mode == HoldR_SL
+    #     target_η = simparams.eetcprob.train.ρ - one(T)
+    # end
 
-    port_condition = LinkPortConditionModule.LinkPortCondition(
-        port2.start,
-        port2.finish,
-        target_speed,
-        target_η
-    )
+    # port_condition = LinkPortConditionModule.LinkPortCondition(
+    #     port2.start,
+    #     port2.finish,
+    #     target_speed,
+    #     target_η
+    # )
+    
+    port_condition = LinkPortConditionModule.makeLinkPortCondition(port2, simparams.eetcprob)
+    
+    # debugging
+    # if isdefined(Main, :Infiltrator)
+    #     Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__)
+    # end
+
     E1 = Roots.find_zero(
         e -> root_f_start(e, simparams.eetcprob, simparams.V, simparams.W, port_condition),
-        [-30., 30.], A42(),
+        (-1., -2.), Roots.Secant(),
         atol = atol
     )
+    # @show E1
     simulate_link_forward(
         zero(T),
         port_condition, 

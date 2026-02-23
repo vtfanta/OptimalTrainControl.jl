@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "c06d0ddd5d74ca77e318757184e3af52dced0740"
 
@@ -914,7 +914,7 @@ version = "1.12.0"
     MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [[deps.OptimalTrainControl]]
-deps = ["DiffEqCallbacks", "JSON", "Optim", "OrdinaryDiffEq", "RecipesBase", "Roots", "StaticArrays"]
+deps = ["DiffEqBase", "DiffEqCallbacks", "JSON", "Optim", "OrdinaryDiffEq", "RecipesBase", "Roots", "StaticArrays"]
 path = ".."
 uuid = "9439a33f-2b93-4fba-a0f8-3bebc99d821e"
 version = "1.0.0-DEV"

@@ -1,7 +1,7 @@
 name = "OptimalTrainControl"
 uuid = "9439a33f-2b93-4fba-a0f8-3bebc99d821e"
-authors = ["Vít Fanta <fantavit@fel.cvut.cz> and contributors"]
 version = "1.0.0-DEV"
+authors = ["Vít Fanta <fantavit@fel.cvut.cz> and contributors"]
 
 [deps]
 DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
@@ -14,11 +14,6 @@ Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-DiffEqBase = "6"
-DiffEqCallbacks = "4"
-JSON = "~0.21.4"
-Optim = "1"
-OrdinaryDiffEq = "6"
 RecipesBase = "1"
 Roots = "2"
 StaticArrays = "1"

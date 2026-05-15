@@ -7,3 +7,4 @@
 /.vscode
 *.json
 !test/CH_*.json
+*.sync-conflict*

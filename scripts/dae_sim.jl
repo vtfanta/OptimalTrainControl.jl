@@ -238,6 +238,7 @@ end
 
 ##
 function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, Uplus, Uminus, R}) where {T<:Real, Uplus, Uminus, R}
+
     if isinf(port1.start)   # port1 is starting point
         if isinf(port2.finish)  # try to directly connect start and finish points (rare)
             error("Not implemented.")
@@ -250,29 +251,20 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
 
             f = ODEFunction{false,SciMLBase.FullSpecialize}(MySim._rhs, mass_matrix=M)
             init_η = 0.0
-            init_states = SA[0.0, V, init_η]
+            init_states = SA[0.0, port2.speed, init_η]
             x_span = reverse((port1.finish, port2.finish))
             push!(simparams.costate_constants, get_init_E(simparams.current_mode, x_span[1], init_states[2], init_η, simparams))
             odeprob = ODEProblem{false}(f, init_states, x_span, simparams)
 
             cb_tuple = MySim.define_callbacks(simparams.ρ)
 
-            cb_hit_singular = ContinuousCallback(
-                (states, params, x) -> states[2] - simparams.V,   # hit v = V
-                function affect!(int)
-                    if 0.0 ≤ int.t ≤ 10e3   # in defined singular segment
-                        SciMLBase.terminate!(int)
-                    end
-                end
-            )
-
             function make_root_f(orig_prob::ODEProblem, cbs::CallbackSet)
                 function root_f(new_x::T)   where {T<:Real}
-                    newprob = remake(orig_prob; tspan = (new_x, orig_prob.tspan[2]))
+                    newprob = remake(orig_prob; tspan = (new_x, orig_prob.tspan[2]), p=deepcopy(simparams))
                     sol::ODESolution = OrdinaryDiffEq.solve(newprob, OrdinaryDiffEq.Rodas5P(), callback=cbs, initializealg = SciMLBase.NoInit(),
                         save_everystep=false, save_start=false)
                     if sol.retcode == ReturnCode.Terminated
-                        return newprob.tspan[2] - sol.t[end] - port1.speed    # - (init_speed), 1.0 in this case to make the function continuous
+                        return newprob.tspan[2] - sol.t[end] - port1.speed    # - (init_speed), port1.speed in this case to make the function continuous
                     elseif sol.retcode == ReturnCode.Success
                         return sol[2,end] - port1.speed
                     else
@@ -285,15 +277,63 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
 
             zeroprob = ZeroProblem(my_f, (port2.finish + port2.start) / 2)
 
-            x_root = Roots.solve(zeroprob, Steffensen(); atol=0.5)  # find such position that integrating backwards gives initial condition
+            x_root = Roots.solve(zeroprob, Steffensen(); atol=0.2)  # find such position that integrating backwards gives initial condition
 
-            ret_prob = remake(odeprob; tspan=(x_root, odeprob.tspan[2]))
+            ret_prob = remake(odeprob; tspan=(x_root, odeprob.tspan[2]), p=deepcopy(simparams))
             odesol::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+            if odesol.retcode == ReturnCode.Success
+                return odesol
+            else
+                error("Root-finding got unsuccesful ODE solution.")
+            end
         end
 
     elseif isinf(port2.finish)  # port2 is finishing point
         # simulate forward from port1 to finish on port2.start (end of track) and matching port2.speed
+        if port1.mode == HoldP
+
+            f = ODEFunction{false,SciMLBase.FullSpecialize}(MySim._rhs, mass_matrix=M)
+            init_η = 0.0
+            init_states = SA[0.0, port1.speed, init_η]
+            x_span = (port1.start, port2.start)
+            push!(simparams.costate_constants, get_init_E(simparams.current_mode, x_span[1], init_states[2], init_η, simparams))
+            odeprob = ODEProblem{false}(f, init_states, x_span, simparams)
+
+            cb_tuple = MySim.define_callbacks(simparams.ρ)
+
+            function make_root_f_finish(orig_prob::ODEProblem, cbs::CallbackSet)
+                function root_f(new_x::T)   where {T<:Real}
+                    newprob = remake(orig_prob; tspan = (new_x, orig_prob.tspan[2]), p=deepcopy(simparams))
+                    sol::ODESolution = OrdinaryDiffEq.solve(newprob, OrdinaryDiffEq.Rodas5P(), callback=cbs, initializealg = SciMLBase.NoInit(),
+                        save_everystep=false, save_start=false)
+                    if sol.retcode == ReturnCode.Terminated
+                        return sol.t[end] - newprob.tspan[2] - port2.speed    # - (final_speed), to make the function continuous
+                    elseif sol.retcode == ReturnCode.Success
+                        return sol[2,end] - port2.speed
+                    else
+                        error("Undefined behaviour for this return code.")
+                    end
+                end
+            end
+
+            my_f = make_root_f_finish(odeprob, CallbackSet(cb_tuple...))
+
+            zeroprob = ZeroProblem(my_f, (port1.finish + port1.start) / 2)
+
+            x_root = Roots.solve(zeroprob, Steffensen(); atol=0.2)  # find such position that integrating backwards gives initial condition
+
+            ret_prob = remake(odeprob; tspan=(x_root, odeprob.tspan[2]), p=deepcopy(simparams))
+            odesol_finish::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+            if odesol_finish.retcode == ReturnCode.Success
+                return odesol_finish
+            else
+                ret_prob = remake(odeprob; tspan=(x_root+1.0, odeprob.tspan[2]), p=deepcopy(simparams))
+                return OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+                #error("Root-finding got unsuccesful ODE solution.")
+            end
+        else    # other port1 modes than HoldP
             error("Not implemented.")
+        end
     else    # connect two interior ports (singular segments)
             error("Not implemented.")
     end
@@ -307,6 +347,7 @@ V = 25.0
 track = Track(30e3)
 port_start = Port(-Inf, 0., MaxP, 1.0)
 port_hold = Port(0., length(track), HoldP, 25.0)
+port_finish = Port(length(track), Inf, MaxB, 1.0)
 
 simparams = MySim.EETCSimParams(
     myU.Max_u(1.0, 5.0),
@@ -321,3 +362,18 @@ simparams = MySim.EETCSimParams(
 )
 
 link(port_start, port_hold, simparams)
+
+##
+simparams_end = MySim.EETCSimParams(
+    myU.Max_u(1.0, 5.0),
+    myU.Min_u(-1.0, 5.0),
+    r,
+    Float64[],
+    Coast,
+    V,
+    MySim.calculate_W(r, ρ, V),
+    track,
+    ρ
+)
+
+link(port_hold, port_finish, simparams_end)

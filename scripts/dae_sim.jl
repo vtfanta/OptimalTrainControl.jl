@@ -175,76 +175,83 @@ end
 using ..MySim
 using Roots
 
-M = SA[1. 0 0; 0 1 0; 0 0 0]
-
-##
-
-function linking(position::T) where T<:Real
-    function rhs(states, params, x)
-        _, v, η = states
-        r, umax, umin, V, current_mode = params
-        if current_mode == MaxP
-            u = umax(v)
-        elseif current_mode == Coast
-            u = zero(typeof(v))
-        elseif current_mode == MaxB
-            u = umin(v)
-        end
-
-        dt = 1 / v
-        dv = (u - r(v)) / v
-        η_eq = (MyResistance.E(r, V, v) - MyResistance.E(r, V, V)) / (u - r(v)) - η
-
-        SA[dt, dv, η_eq]
-
-        # d_states[1] = 1/v
-        # d_states[2] = (u - r(v)) / v
-        # d_states[3] = (MyResistance.E(r, V, v) - MyResistance.E(r, V, V)) / (umax(v) - r(v)) - η
-
-    end
-
-    M = SA[1. 0 0; 0 1 0; 0 0 0]
-    f = ODEFunction{false,SciMLBase.FullSpecialize}(rhs, mass_matrix=M)
-
-    res = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
-    u_max = myU.Max_u(1, 5)
-    u_min = myU.Min_u(-1, 5)
-    V = 25
-
-    lowspeed_cb = ContinuousCallback(
-        (states, params, x) -> states[2] - 1.0,
-        int -> terminate!(int); abstol=0.2
-    )
-
-    # try to connect starting port with cruising part
-
-    dist_span = reverse((0.0, position))
-    # dist_span = reverse([0.0, 9e3])
-    final_states = MArray{Tuple{3}}([0.0, V, 0.0])
-    current_mode = MaxP
-    params = (res, u_max, u_min, V, current_mode)
-    prob = ODEProblem{false}(f, final_states, dist_span, params)
-
-    sol = OrdinaryDiffEq.solve(prob, Rodas5(); callback=lowspeed_cb, save_everystep=false)
-
-    if sol.retcode == ReturnCode.Success
-        sol[2, end] - 1.0
-    elseif sol.retcode == ReturnCode.Terminated
-        -sol.t[end]  # want to hit x = 0
-    else
-        error("Unknown retcode behaviour.")
-    end
-end
 
 ##
 function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, Uplus, Uminus, R}) where {T<:Real, Uplus, Uminus, R}
+    M = SA[1. 0 0; 0 1 0; 0 0 0]
 
     if isinf(port1.start)   # port1 is starting point
-        if isinf(port2.finish)  # try to directly connect start and finish points (rare)
-            error("Not implemented.")
-        end
+        if isinf(port2.finish)  # try to directly connect start and finish points (rare);
+            # known initial and final position and speeds; do shooting from initial condition (guess initial η) and try to match final speed condition
+            f = ODEFunction{false,SciMLBase.FullSpecialize}(MySim._rhs, mass_matrix=M)
+            init_η_placeholder = 0.2
+            init_states = SA[0.0, port1.speed, init_η_placeholder]
+            x_span = (port1.finish, port2.start)
+            push!(simparams.costate_constants, get_init_E(simparams.current_mode, x_span[1], init_states[2], init_η_placeholder, simparams))
+            odeprob = ODEProblem{false}(f, init_states, x_span, simparams) 
 
-        if port2.mode == HoldP
+            cb_tuple = MySim.define_callbacks(simparams.ρ)
+
+            function make_root_f_start_finish(orig_prob::ODEProblem, cbs::CallbackSet)
+                function root_f(new_init_η::T) where {T<:Real}
+                    p_copy = deepcopy(simparams)
+
+                    # choose initial mode based on η (costate) value
+                    if new_init_η > 0
+                        p_copy.current_mode = MaxP
+                        p_copy.costate_constants = [get_init_E(MaxP, port1.finish, port1.speed, new_init_η, p_copy)]
+                    elseif new_init_η > p_copy.ρ - 1
+                        p_copy.current_mode = Coast
+                        p_copy.costate_constants = [get_init_E(Coast, port1.finish, port1.speed, new_init_η, p_copy)]
+                    else
+                        p_copy.current_mode = MaxB
+                        p_copy.costate_constants = [get_init_E(MaxB, port1.finish, port1.speed, new_init_η, p_copy)]
+                    end
+
+                    newprob = remake(orig_prob; u0=[0.0, port1.speed, new_init_η], p=p_copy)
+                    sol::ODESolution = OrdinaryDiffEq.solve(newprob, OrdinaryDiffEq.Rodas5P(), callback=cbs, initializealg=SciMLBase.NoInit(),
+                        save_everystep=false, save_start=false)
+                    if sol.retcode == ReturnCode.Terminated     # stopped by speed too low (singularity)
+                        return sol.t[end] - port2.start - port2.speed
+                    elseif sol.retcode == ReturnCode.Success    # is final speed condition satisfied?
+                        return sol[2,end] - port2.speed
+                    else
+                        error("Undefined behaviour for this return code.")
+                    end
+                end
+            end
+
+            my_f = make_root_f_start_finish(odeprob, CallbackSet(cb_tuple...))
+
+            # my_f(2.259380)
+
+            zeroprob = ZeroProblem(my_f, 2.0)   # 2.0 as initial guess for η₀
+
+            η_root = Roots.solve(zeroprob; atol=0.5)    # Steffensen doesn't work here for some reason
+
+            p_copy = deepcopy(simparams)
+            # choose initial mode based on η (costate) value
+            if η_root > 0
+                p_copy.current_mode = MaxP
+                p_copy.costate_constants = [get_init_E(MaxP, port1.finish, port1.speed, η_root, p_copy)]
+            elseif η_root > p_copy.ρ - 1
+                p_copy.current_mode = Coast
+                p_copy.costate_constants = [get_init_E(Coast, port1.finish, port1.speed, η_root, p_copy)]
+            else
+                p_copy.current_mode = MaxB
+                p_copy.costate_constants = [get_init_E(MaxB, port1.finish, port1.speed, η_root, p_copy)]
+            end
+
+            ret_prob = remake(odeprob; u0=[0.0, port1.speed, η_root], p=p_copy)
+
+            odesol_startfinish::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+            if odesol_startfinish.retcode == ReturnCode.Success
+                return odesol_startfinish
+            else
+                error("Root-finding got unsuccesful ODE solution.")
+            end
+
+        elseif port2.mode == HoldP
             # start from somewhere on port2 and simulate backwards to port1;
             # find root of linking function that returns negative numbers when terminated due to low speed
             # and positive when simulated to port1, but final(initial) speed is different
@@ -286,6 +293,8 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
             else
                 error("Root-finding got unsuccesful ODE solution.")
             end
+        else    #   not implemented for other port2 ports
+            error("Not implemented for this port2.mode: $(port2.mode)")
         end
 
     elseif isinf(port2.finish)  # port2 is finishing point
@@ -339,6 +348,27 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
     end
 
 end
+##
+r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
+ρ = 0.5
+V = 25.0
+track = Track(3e3)
+port_start = Port(-Inf, 0., MaxP, 1.0)
+port_hold = Port(0., length(track), HoldP, 25.0)
+port_finish = Port(length(track), Inf, MaxB, 1.0)
+
+simparams = MySim.EETCSimParams(
+    myU.Max_u(1.0, 5.0),
+    myU.Min_u(-1.0, 5.0),
+    r,
+    Float64[],
+    MaxP,
+    V,
+    MySim.calculate_W(r, ρ, V),
+    track,
+    ρ
+)
+start_finish_link = link(port_start, port_finish, simparams)
 ##
 
 r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)

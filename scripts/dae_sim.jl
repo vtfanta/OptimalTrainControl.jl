@@ -1,5 +1,6 @@
 # use Rodas4 method to solve DAE (EETC with two states and the η state as algebraic)
 
+using DiffEqBase
 using LinearAlgebra
 using NonlinearSolve
 using OptimalTrainControl
@@ -245,6 +246,7 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
             ret_prob = remake(odeprob; u0=[0.0, port1.speed, η_root], p=p_copy)
 
             odesol_startfinish::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+
             if odesol_startfinish.retcode == ReturnCode.Success
                 return odesol_startfinish
             else
@@ -287,8 +289,23 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
             x_root = Roots.solve(zeroprob, Steffensen(); atol=0.2)  # find such position that integrating backwards gives initial condition
 
             ret_prob = remake(odeprob; tspan=(x_root, odeprob.tspan[2]), p=deepcopy(simparams))
-            odesol::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
-            if odesol.retcode == ReturnCode.Success
+            _odesol::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
+
+            # reverse the solution and make time start at zero
+            time_minval = _odesol[1,end]
+            shifted_time = reverse(_odesol[1,:] .- time_minval)
+
+            reversed_speed = reverse(_odesol[2,:])
+            reversed_η = reverse(_odesol[3,:])
+
+            states_proper = [[shifted_time[k], reversed_speed[k], reversed_η[k]] for k in eachindex(shifted_time)]
+
+            odesol = DiffEqBase.build_solution(ret_prob, OrdinaryDiffEq.Rodas5P(), reverse(_odesol.t),states_proper,
+                retcode=_odesol.retcode, dense=_odesol.dense, k=_odesol.k,
+                alg_choice=_odesol.alg_choice, resid=_odesol.resid, original=_odesol.original,
+                saved_subsystem=_odesol.saved_subsystem)
+
+            if successful_retcode(odesol)
                 return odesol
             else
                 error("Root-finding got unsuccesful ODE solution.")
@@ -349,26 +366,26 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
 
 end
 ##
-r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
-ρ = 0.5
-V = 25.0
-track = Track(3e3)
-port_start = Port(-Inf, 0., MaxP, 1.0)
-port_hold = Port(0., length(track), HoldP, 25.0)
-port_finish = Port(length(track), Inf, MaxB, 1.0)
+# r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
+# ρ = 0.5
+# V = 25.0
+# track = Track(3e3)
+# port_start = Port(-Inf, 0., MaxP, 1.0)
+# port_hold = Port(0., length(track), HoldP, 25.0)
+# port_finish = Port(length(track), Inf, MaxB, 1.0)
 
-simparams = MySim.EETCSimParams(
-    myU.Max_u(1.0, 5.0),
-    myU.Min_u(-1.0, 5.0),
-    r,
-    Float64[],
-    MaxP,
-    V,
-    MySim.calculate_W(r, ρ, V),
-    track,
-    ρ
-)
-start_finish_link = link(port_start, port_finish, simparams)
+# simparams = MySim.EETCSimParams(
+#     myU.Max_u(1.0, 5.0),
+#     myU.Min_u(-1.0, 5.0),
+#     r,
+#     Float64[],
+#     MaxP,
+#     V,
+#     MySim.calculate_W(r, ρ, V),
+#     track,
+#     ρ
+# )
+# start_finish_link = link(port_start, port_finish, simparams)
 ##
 
 r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
@@ -391,7 +408,7 @@ simparams = MySim.EETCSimParams(
     ρ
 )
 
-link(port_start, port_hold, simparams)
+start_link = link(port_start, port_hold, simparams)
 
 ##
 simparams_end = MySim.EETCSimParams(
@@ -406,4 +423,4 @@ simparams_end = MySim.EETCSimParams(
     ρ
 )
 
-link(port_hold, port_finish, simparams_end)
+finish_link = link(port_hold, port_finish, simparams_end)

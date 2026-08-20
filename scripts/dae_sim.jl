@@ -4,6 +4,7 @@ using DiffEqBase
 using LinearAlgebra
 using NonlinearSolve
 using OptimalTrainControl
+import OptimalTrainControl as OTC
 using OrdinaryDiffEq
 using Plots
 using StaticArrays
@@ -170,6 +171,10 @@ function get_init_E(mode::OptimalTrainControl.Mode, start_x::T, start_v::T, star
         start_η * (- simparams.r(start_v) + OptimalTrainControl.g(simparams.track, start_x)) - MyResistance.E(simparams.r, simparams.V, start_v)
     elseif mode == MaxB
         start_η * (simparams.u_min(start_v) - simparams.r(start_v) + OptimalTrainControl.g(simparams.track, start_x)) - MyResistance.E(simparams.r, simparams.V, start_v)
+    elseif mode == HoldP
+        error("Not implemented for this mode: $(mode)")
+    else
+        error("Not implemented for this mode: $(mode)")
     end
 end
 
@@ -179,14 +184,14 @@ using Roots
 
 ##
 function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, Uplus, Uminus, R}) where {T<:Real, Uplus, Uminus, R}
-    M = SA[1. 0 0; 0 1 0; 0 0 0]
+    M = SA[1. 0. 0.; 0. 1. 0.; 0. 0. 0.]
 
     if isinf(port1.start)   # port1 is starting point
         if isinf(port2.finish)  # try to directly connect start and finish points (rare);
             # known initial and final position and speeds; do shooting from initial condition (guess initial η) and try to match final speed condition
             f = ODEFunction{false,SciMLBase.FullSpecialize}(MySim._rhs, mass_matrix=M)
             init_η_placeholder = 0.2
-            init_states = SA[0.0, port1.speed, init_η_placeholder]
+            init_states = [0.0, port1.speed, init_η_placeholder]
             x_span = (port1.finish, port2.start)
             push!(simparams.costate_constants, get_init_E(simparams.current_mode, x_span[1], init_states[2], init_η_placeholder, simparams))
             odeprob = ODEProblem{false}(f, init_states, x_span, simparams) 
@@ -223,8 +228,6 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
             end
 
             my_f = make_root_f_start_finish(odeprob, CallbackSet(cb_tuple...))
-
-            # my_f(2.259380)
 
             zeroprob = ZeroProblem(my_f, 2.0)   # 2.0 as initial guess for η₀
 
@@ -350,7 +353,7 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
 
             ret_prob = remake(odeprob; tspan=(x_root, odeprob.tspan[2]), p=deepcopy(simparams))
             odesol_finish::ODESolution = OrdinaryDiffEq.solve(ret_prob, OrdinaryDiffEq.Rodas5P(), callback=CallbackSet(cb_tuple...), initializealg=SciMLBase.NoInit())
-            if odesol_finish.retcode == ReturnCode.Success
+            if successful_retcode(odesol_finish.retcode)
                 return odesol_finish
             else
                 ret_prob = remake(odeprob; tspan=(x_root+1.0, odeprob.tspan[2]), p=deepcopy(simparams))
@@ -365,6 +368,74 @@ function link(port1::Port{T}, port2::Port{T}, simparams::MySim.EETCSimParams{T, 
     end
 
 end
+
+## _solve flat EETC
+# solve EETC for given cruising speed V:
+#   - divide track to ports based on V (start, HoldP, HoldR, finish)
+#   - find links (ODESolutions) between pairs of ports
+#   - construct EETCSolution from links
+function _solve(V::T, initial_speed::T, terminal_speed::T, eetcprob::OTC.EETCProblem) where {T<:Real}
+    track = eetcprob.track
+
+    if !isempty(track.gradient)
+        error("Optimization for non-flat EETC is not implemented yet.")
+    end
+
+    ports = OptimalTrainControl.Port{T}[]
+
+    # Form start port, TODO prove that this logic deciding initial phase is correct
+    if initial_speed < V
+        push!(ports, Port(-Inf, 0.0, MaxP, initial_speed))
+    elseif initial_speed ≈ V
+        push!(ports, Port(-Inf, 0.0, HoldP, V))
+    else # initial_speed > V
+        push!(ports, Port(-Inf, 0.0, Coast, initial_speed))
+    end
+
+    # Form middle ports
+    # Find where it is possible to hold cruising speed V
+    # For a flat track, there is only one port spanning the whole track
+    push!(ports, Port(0.0, length(track), HoldP, V))
+
+    # Form finish port
+    push!(ports, Port(length(track), Inf, MaxB, terminal_speed))
+
+    # Form links between ports
+    # can be parallelized
+    found_links = Dict{Tuple{Port{T}, Mode, Port{T}}, ODESolution}()
+    possible_link_combinations = [(ports[i], ports[j]) for i in eachindex(ports) for j in eachindex(ports) if i < j]
+    #=Threads.@threads=# for (port1, port2) in possible_link_combinations
+        println("Finding link between port: $(port1) and port $(port2)")
+        if isinf(port1.start) && isinf(port2.finish)
+            @warn("Not implemented directly connecting start and finish ports.")
+            continue
+        end
+        simparams = MySim.EETCSimParams(
+            myU.Max_u(1.0, 5.0),
+            myU.Min_u(-1.0, 5.0),
+            r,
+            Float64[],
+            MaxP,
+            V,
+            MySim.calculate_W(r, ρ, V),
+            track,
+            ρ
+        )
+        if port1.mode == HoldP  # try both modes
+            simparams.current_mode = Coast
+            l = link(port1, port2, simparams)
+            found_links[(port1, Coast, port2)] = l
+            simparams.current_mode = MaxP
+            l = link(port1, port2, simparams)
+            found_links[(port1, MaxP, port2)] = l
+        else
+            simparams.current_mode = port1.mode # simulating forwards from port1 to port2, so start with port1 mode
+            l = link(port1, port2, simparams)
+            found_links[(port1, port1.mode, port2)] = l
+        end
+    end
+end
+
 ##
 # r = MyResistance.DavisResistance(1e-2, 0.0, 1.5e-5)
 # ρ = 0.5
@@ -424,3 +495,10 @@ simparams_end = MySim.EETCSimParams(
 )
 
 finish_link = link(port_hold, port_finish, simparams_end)
+
+##
+T = 1500.0
+train = Train(v -> simparams.u_max(v), v -> simparams.u_min(v), (r.a, r.b, r.c), ρ)
+eetcprob = OTC.EETCProblem(T, train, track, 1.0)
+
+_solve(V, 1.0, 1.0, eetcprob)

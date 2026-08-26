@@ -283,9 +283,9 @@ V = 15.0
 v₀ = 1.0
 vf = 1.0
 ports = find_ports_flat(track, train, V, v₀, vf)
-PORT2_SPEED = V+30
-PORT2_START = 0e3
-PORT2_FINISH = 2e3
+PORT2_SPEED = V
+PORT2_START = 3e3
+PORT2_FINISH = 5e3
 cb = ContinuousCallback(
     (states, params, x) -> states[2] - PORT2_SPEED,
     function (int) if PORT2_START ≤ int.t ≤ PORT2_FINISH
@@ -309,16 +309,16 @@ cb = ContinuousCallback(
 #  P3 -> P4: HoldP_SL to HoldP with potential initial jump in η to MaxP to reach HoldP with η = 0 with the cruising speed
 #               found: η(3000+) = 0.003082254 to reach V at 3480.273 m, DONE
 #  P4 -> P5: HoldP to finish port, searching for location on P4 where to exit HoldP with η = 0 - eps() to coast and eventually MaxB
-#               to reach end of track with final speed; not possible since transition to Coast at link from P3 does not reach final speed in time
-#  P3 -> P5: HoldP_SL to finish port, not possible since even from start of P3 with η = 0, the trajectory does not reach final speed in time
-#  P2 -> P5: HoldP to finish port; not possible since from the previous link from P1 to P2, the trajectory does not reach final speed in time
+#               to reach end of track with final speed; not possible since transition to Coast at link from P3 does not reach final speed in time, DONE
+#  P3 -> P5: HoldP_SL to finish port, not possible since even from start of P3 with η = 0, the trajectory does not reach final speed in time, DONE
+#  P2 -> P5: HoldP to finish port; not possible since from the previous link from P1 to P2, the trajectory does not reach final speed in time, DONE
 #  P1 -> P5: MaxP to finish port; finding η(0) such that the trajectory reaches final speed at the end of track; found η(0) = 0.0913696, within 1e-2 of the final speed
-#                   found η(0) = 0.0913696, within 1e-2 of the final speed
+#                   found η(0) = 0.0913696, within 1e-2 of the final speed, DONE
 #               NEED TO ALSO CHECK NO SPEEDLIMIT VIOLATIONS: there are none.
 #                   if there were some, then there would be some η(0) such that the trajectory reaches the start of speedlimit at the appropriate
 #                   speed limit speed, and then the trajectory would continue to the end of track, but there would be jump in η at the point of contact with the speed limit
 
-odesol, params = simulate((.0, 5e3), train, [0.0, v₀, 0.09136959871495226], MaxP, V, cb); odesol
+odesol, params = simulate((ports[3].finish, ports[4].finish), train, [0.0, ports[3].speed, 0.0030824197914474136], MaxP, V, cb); odesol
 
 ## root functions
 
@@ -404,6 +404,57 @@ function root_holdP_SL_to_subsequent_holdP(η_jump, port1, port2, train::Train, 
     end
 end
 
+function root_holdP_to_finish(x₀, port1, port2, train::Train, V, startmode::Mode)
+    # find position x₀ such that the trajectory reaches the finish port with final speed vf
+    if startmode == MaxP
+        η₀ = 0.0+eps()   # start with η=0 and accelerating at x₀
+    elseif startmode == Coast
+        η₀ = 0.0-eps()   # start with η=0 and coasting at x₀
+    else
+        error("root_holdP_to_finish: Not implemented for startmode: $(startmode)")
+    end
+
+    odesol, _ = simulate((x₀, port2.start), train, [0.0, port1.speed, η₀], startmode, V, ContinuousCallback(
+        (states, params, x) -> states[2] + 1e3, # never hit this callback
+        int -> ()
+    ))
+    if odesol.retcode == ReturnCode.Terminated # exited early
+        return odesol.t[end] - port2.start - port2.speed  # want to reach final speed at the end of track
+    elseif odesol.retcode == ReturnCode.Success # reached finish
+        return odesol[2,end] - port2.speed  # want to reach final speed at the end of track
+    else
+        error("root_holdP_to_finish: ODE solver failed with retcode: $(odesol.retcode)")  
+    end
+end
+
+function root_HoldP_SL_to_finish(x₀, port1, port2, train::Train, V, startmode::Mode)
+    odesol, _ = simulate((x₀, port2.start), train, [0.0, port1.speed, 0.0+eps()], startmode, V, ContinuousCallback(
+        (states, params, x) -> states[2] + 1e3, # never hit this callback
+        int -> ()
+    ))
+    if odesol.retcode == ReturnCode.Terminated # exited early
+        return odesol.t[end] - port2.start - port2.speed  # want to reach final speed at the end of track
+    elseif odesol.retcode == ReturnCode.Success # reached finish
+        return odesol[2,end] - port2.speed  # want to reach final speed at the end of track
+    else
+        error("root_HoldP_SL_to_finish: ODE solver failed with retcode: $(odesol.retcode)")
+    end
+end
+
+function root_HoldP_SL_to_finish_with_jump(η_jump, port1, port2, train::Train, V, startmode::Mode)
+    odesol, _ = simulate((η_jump, port2.start), train, [0.0, port1.speed, 0.0+η_jump], startmode, V, ContinuousCallback(
+        (states, params, x) -> states[2] + 1e3, # never hit this callback
+        int -> ()
+    ))
+    if odesol.retcode == ReturnCode.Terminated # exited early
+        return odesol.t[end] - port2.start - port2.speed  # want to reach final speed at the end of track
+    elseif odesol.retcode == ReturnCode.Success # reached finish
+        return odesol[2,end] - port2.speed  # want to reach final speed at the end of track
+    else
+        error("root_HoldP_SL_to_finish_with_jump: ODE solver failed with retcode: $(odesol.retcode)")
+    end
+end
+
 ##
 function link(port1, port2, train::Train, V; track=false)
     @assert port1.finish ≤ port2.start "Ports must be ordered: port1.finish ≤ port2.start"
@@ -434,6 +485,45 @@ function link(port1, port2, train::Train, V; track=false)
                 root_prob = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-6)
                 return NLS.solve(root_prob).u
             end
+        elseif isinf(port2.finish)  # connecting from HoldP_SL port to finish port
+            if port1.speed > port2.speed
+                startmode = Coast   # find position x₀ such that trajectory reaches the finish port with final speed vf
+
+                sign_root_lower_bound = sign(root_HoldP_SL_to_finish(port1.start, port1, port2, train, V, startmode))
+                sign_root_upper_bound = sign(root_HoldP_SL_to_finish(port1.finish, port1, port2, train, V, startmode))
+                if sign_root_lower_bound == sign_root_upper_bound
+                    println("Rootfinding: Unable to find root for x0 in root_holdP_SL_to_finish.")
+                    return NaN
+                end
+
+                fn = NLS.NonlinearFunction((x,_) -> root_holdP_SL_to_finish(x[1], port1, port2, train, V, startmode))
+                root_prob = NLS.IntervalNonlinearProblem(fn, [port1.start, port1.finish], [(port1.start+port1.finish)/2], abstol=1e-2)
+                return NLS.solve(root_prob).u
+
+            elseif port1.speed < port2.speed
+                startmode = MaxP    # find jump in η at end of HoldP_SL such that trajectory reaches the finish port with final speed vf
+
+                η_jump_lower_bound = 0.0+eps()
+                η_jump_upper_bound = 1e3
+                sign_root_lower_bound = sign(root_holdP_SL_to_finish_with_jump(η_jump_lower_bound, port1, port2, train, V, startmode))
+                sign_root_upper_bound = sign(root_holdP_SL_to_finish_with_jump(η_jump_upper_bound, port1, port2, train, V, startmode))
+                if sign_root_lower_bound == sign_root_upper_bound
+                    println("Rootfinding: Unable to find root for η_jump in root_holdP_SL_to_finish_with_jump.")
+                    return NaN
+                end
+                while root_holdP_SL_to_finish_with_jump(η_jump_upper_bound, port1, port2, train, V, startmode) > 0.0
+                    η_jump_upper_bound /= 2.0
+                end
+                η_jump_upper_bound *= 2.0
+
+                fn = NLS.NonlinearFunction((η,_) -> root_holdP_SL_to_finish_with_jump(η[1], port1, port2, train, V, startmode))
+                root_prob = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-2)
+                return NLS.solve(root_prob).u
+            else
+                error("link HoldP_SL to finish: port1.speed == port2.speed, not implemented.")
+            end
+        else
+            error("Not implemented for connecting HoldP_SL to this port.")
         end
 
     elseif port1.mode == HoldP
@@ -458,9 +548,30 @@ function link(port1, port2, train::Train, V; track=false)
                 return NLS.solve(root_prob).u
 
             else
-                error("")
+                error("This should not happen: port1.speed ≤ port2.speed when connecting HoldP to HoldP_SL.")
             end
 
+        elseif isinf(port2.finish)  # connecting from HoldP port to finish port
+            # find position x₀ such that trajectory reaches the finish port with final speed vf
+            if port1.speed > port2.speed
+                startmode = Coast
+            elseif port1.speed < port2.speed
+                startmode = MaxP
+            else
+                error("link HoldP to finish: port1.speed == port2.speed, not implemented.")
+            end
+            x0_lower_bound = port1.start
+            x0_upper_bound = port1.finish
+            sign_root_lower_bound = sign(root_holdP_to_finish(x0_lower_bound, port1, port2, train, V, startmode))
+            sign_root_upper_bound = sign(root_holdP_to_finish(x0_upper_bound, port1, port2, train, V, startmode))
+            if sign_root_lower_bound == sign_root_upper_bound
+                println("Rootfinding: Unable to find root for x0 in root_holdP_to_finish.")
+                return NaN
+            end
+
+            fn = NLS.NonlinearFunction((x,_) -> root_holdP_to_finish(x[1], port1, port2, train, V, startmode))
+            root_prob = NLS.IntervalNonlinearProblem(fn, [x0_lower_bound, x0_upper_bound], [(x0_lower_bound+x0_upper_bound)/2], abstol=1e-2)
+            return NLS.solve(root_prob).u
         else
             error("Not implemented for connecting from HoldP to non-HoldP_SL port.")
         end

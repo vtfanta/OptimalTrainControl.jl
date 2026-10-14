@@ -127,25 +127,6 @@ vf = 1.0
 
 ports = find_ports_flat(track, train, V, v₀, vf)
 
-## Connecting ports with optimal trajectory segments
-
-# How to connect the ports with optimal trajectory segments?
-# It is proven in Khmelnitsky, 2000 that two ports can be connected by at most 1 path (e.g. if port1 -> port2 -> port3 exists, then port1 -> port3 does not).
-# It is also proven that there is only 1 combinded path connecting the start port to the finish port, which is the optimal trajectory.
-
-# Build a graph of ports and find links (edges) between them.
-using Graphs
-graph = SimpleDiGraph(length(ports))
-
-for port1_idx in eachindex(ports)
-    for port2_idx in port1_idx+1:length(ports)
-        port1, port2 = ports[port1_idx], ports[port2_idx]
-        if !has_path(graph, port1_idx, port2_idx)   # possible new link
-
-        end
-    end
-end
-
 function calculate_W(train, V)
     if train.ρ > 0
         prob = Roots.ZeroProblem(v -> -ψ(train, V) + train.ρ * ψ(train, v), V)
@@ -683,3 +664,113 @@ function link(port1, port2, train::Train, V; track=false)
         error("Not implemented for connecting from non-start port.")
     end
 end
+## Connecting ports with optimal trajectory segments
+
+# How to connect the ports with optimal trajectory segments?
+# It is proven in Khmelnitsky, 2000 that two ports can be connected by at most 1 path (e.g. if port1 -> port2 -> port3 exists, then port1 -> port3 does not).
+# It is also proven that there is only 1 combinded path connecting the start port to the finish port, which is the optimal trajectory.
+
+# Build a graph of ports and find links (edges) between them.
+using Graphs
+using SimpleWeightedGraphs
+
+
+function get_explorable_ports(port_idx, ports, explored_edges::Set, graph::SimpleDiGraph)
+    explorable_ports = Port[]
+    for next_port_idx in port_idx:length(ports)
+        if has_path(graph, port_idx, next_port_idx) || (port_idx, ports[next_port_idx]) in explored_edges
+            continue
+        end
+        push!(explorable_ports, ports[next_port_idx])
+    end
+    explorable_ports
+end
+
+function fulfills_speedlimit(odesol, track)
+    for (x, v) in zip(odesol.t, odesol[2,:])
+        if v > speedlimit(track, x) + 1e-2
+            println("Speed limit violation at x = $(x): v = $(v), speedlimit = $(speedlimit(track, x))")
+            return false
+        end
+    end
+    return true
+end
+
+# depth-first search to find all sequence of links between start and finish ports (necessarily the optimal trajectory)
+graph = SimpleDiGraph(length(ports))
+
+port_stack = Port[ports[1]]
+
+current_port_idx = 1
+current_port = pop!(port_stack)
+link_data = Dict{Tuple{Int64, Int64}, Tuple{Float64, Float64, Float64}}()  # (port1_idx, port2_idx) => (port1 exit position, link value (NaN or η jump), port2 entry position)
+explored_edges = Set{Tuple{Int64, Int64}}()
+
+explorable_stack = Tuple{Port, Port}[]
+push!(explorable_stack, [(current_port, P) for P in get_explorable_ports(current_port_idx, ports, explored_edges, graph)]...)
+
+# try to link start and finish ports directly
+l = link(current_port, ports[end], train, V)
+if !isnan(l)
+    # check no violations of speed limits along the trajectory
+    odesol = simulate((current_port.finish, ports[end].start), train, [0.0, current_port.speed, l], current_port.mode, V, ContinuousCallback(
+        (states, params, x) -> states[2] + 1e3, # never hit this callback
+        int -> ()
+    ))[1]
+    if fulfills_speedlimit(odesol, track)
+        println("Direct link from start to finish port found with η(0) = $(l).")
+        # Optimal solution found since parallel connections are not optimal.
+        add_edge!(graph, current_port_idx, lastindex(ports))
+        link_data[(current_port_idx, lastindex(ports))] = (current_port.finish, l, ports[end].start)
+        # TODO return
+    else
+        println("Direct link from start to finish port found with η(0) = $(l), but speed limit violations occur along the trajectory.")
+    end
+end
+
+# TODO only for debugging!
+rem_edge!(graph, current_port_idx, lastindex(ports))
+push!(explored_edges, (current_port_idx, lastindex(ports)))
+pop!(explorable_stack)
+
+# keep exploring from first port
+candidate_edge = popfirst!(explorable_stack)
+candidate_link = link(candidate_edge[1], candidate_edge[2], train, V)
+if !isnan(candidate_link)
+    # check no violations of speed limits along the trajectory
+    odesol = simulate((candidate_edge[1].finish, candidate_edge[2].start), train, [0.0, candidate_edge[1].speed, candidate_link], candidate_edge[1].mode, V, ContinuousCallback(
+        (states, params, x) -> states[2] + 1e3, # never hit this callback
+        int -> ()
+    ))[1]
+    if fulfills_speedlimit(odesol, track)
+        println("Link found from port $(candidate_edge[1]) to port $(candidate_edge[2]) with η(0) = $(candidate_link).")
+        add_edge!(graph, findfirst(po -> isequal(po, candidate_edge[1]), ports), findfirst(po -> isequal(po, candidate_edge[2]), ports))
+        link_data[(findfirst(po -> isequal(po, candidate_edge[1]), ports), findfirst(po -> isequal(po, candidate_edge[2]), ports))] = (candidate_edge[1].finish, candidate_link, candidate_edge[2].start)
+    else
+        println("Link found from port $(candidate_edge[1]) to port $(candidate_edge[2]) with η(0) = $(candidate_link), but speed limit violations occur along the trajectory.")
+    end
+else    # no link found
+    println("No link found from port $(candidate_edge[1]) to port $(candidate_edge[2]).")
+end
+
+
+##
+# while !has_path(graph, firstindex(ports), lastindex(ports))
+    explorable_ports = get_explorable_ports(current_port_idx, ports, explored_edges, graph)
+    push!(explorable_stack, [(current_port, P) for P in explorable_ports]...)
+    p = popfirst!(port_stack)
+    p_index = findfirst(po -> isequal(po, p), ports)
+    if (current_port_idx, p_index) in explored_edges
+    else
+        l = link(current_port, p, train, V)
+        if !isnan(l)
+            println("Link found from port $(current_port_idx) to port $(p_index) with η(0) = $(l).")
+            add_edge!(graph, current_port_idx, p_index)
+            link_data[(current_port_idx, p_index)] = (NaN, l, NaN)
+        else
+            println("No link found from port $(current_port_idx) to port $(p_index).")
+        end
+        push!(explored_edges, (current_port_idx, p_index))
+    end
+
+# end

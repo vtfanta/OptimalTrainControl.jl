@@ -463,8 +463,13 @@ function link(port1, port2, train::Train, V; track=false)
                 η_jump_upper_bound *= 2.0
 
                 fn = NLS.NonlinearFunction((η,_) -> root_holdP_SL_to_subsequent_holdP(η[1], port1, port2, train, V, MaxP))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-6)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-6) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
             end
         elseif isinf(port2.finish)  # connecting from HoldP_SL port to finish port
             if port1.speed > port2.speed
@@ -478,8 +483,13 @@ function link(port1, port2, train::Train, V; track=false)
                 end
 
                 fn = NLS.NonlinearFunction((x,_) -> root_holdP_SL_to_finish(x[1], port1, port2, train, V, startmode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [port1.start, port1.finish], [(port1.start+port1.finish)/2], abstol=1e-2)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [port1.start, port1.finish], [(port1.start+port1.finish)/2], abstol=1e-2) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
 
             elseif port1.speed < port2.speed
                 startmode = MaxP    # find jump in η at end of HoldP_SL such that trajectory reaches the finish port with final speed vf
@@ -498,8 +508,13 @@ function link(port1, port2, train::Train, V; track=false)
                 η_jump_upper_bound *= 2.0
 
                 fn = NLS.NonlinearFunction((η,_) -> root_holdP_SL_to_finish_with_jump(η[1], port1, port2, train, V, startmode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-2)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-2) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
             else
                 error("link HoldP_SL to finish: port1.speed == port2.speed, not implemented.")
             end
@@ -525,9 +540,13 @@ function link(port1, port2, train::Train, V; track=false)
                 end
 
                 fn = NLS.NonlinearFunction((x,_) -> root_holdP_to_holdP_SL(x[1], port1, port2, train, V, Coast))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [x0_lower_bound, x0_upper_bound], [(x0_lower_bound+x0_upper_bound)/2], abstol=1e-2)
-                return NLS.solve(root_prob).u
-
+                root_sol = NLS.IntervalNonlinearProblem(fn, [x0_lower_bound, x0_upper_bound], [(x0_lower_bound+x0_upper_bound)/2], abstol=1e-2) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
             else
                 error("This should not happen: port1.speed ≤ port2.speed when connecting HoldP to HoldP_SL.")
             end
@@ -551,8 +570,13 @@ function link(port1, port2, train::Train, V; track=false)
             end
 
             fn = NLS.NonlinearFunction((x,_) -> root_holdP_to_finish(x[1], port1, port2, train, V, startmode))
-            root_prob = NLS.IntervalNonlinearProblem(fn, [x0_lower_bound, x0_upper_bound], [(x0_lower_bound+x0_upper_bound)/2], abstol=1e-2)
-            return NLS.solve(root_prob).u
+            root_sol = NLS.IntervalNonlinearProblem(fn, [x0_lower_bound, x0_upper_bound], [(x0_lower_bound+x0_upper_bound)/2], abstol=1e-2) |> NLS.solve
+            if abs(root_sol.resid) > 0.1
+                # not converged
+                return NaN
+            else
+                root_sol.u
+            end
         else
             error("Not implemented for connecting from HoldP to non-HoldP_SL port.")
         end
@@ -571,8 +595,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_hold(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
                 # return Roots.find_zero(η₀ -> root_start_to_hold(η₀, port1, port2, train, V, port1.mode), 0.1, Order5(), atol=1e-6)
             elseif port1.mode == Coast
                 η₀_upper_bound = 0.0-eps()
@@ -585,8 +614,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_hold(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
                 # return Roots.find_zero(η₀ -> root_start_to_hold(η₀, port1, port2, train, V, port1.mode), -0.1, Order5(), atol=1e-6)
             else
                 error("Not implemented for starting mode: $(port1.mode)")
@@ -604,9 +638,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_finish(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6)
-                return NLS.solve(root_prob).u
-                # return Roots.find_zero(η₀ -> root_start_to_finish(η₀, port1, port2, train, V, port1.mode), (0.00000001, 10.0), Roots.Brent(), atol=1e-2)
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
             elseif port1.mode == Coast
                 η₀_upper_bound = 0.0-eps()
                 η₀_lower_bound = -0.1
@@ -618,8 +656,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_finish(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-6) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
                 # return Roots.find_zero(η₀ -> root_start_to_finish(η₀, port1, port2, train, V, port1.mode), (-10.0, -0.00000001), Roots.Brent(), atol=1e-2)
             else
                 error("Not implemented for starting mode: $(port1.mode)")
@@ -637,8 +680,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_speedlimit(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-2)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-2) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
                 # return Roots.find_zero(η₀ -> root_start_to_speedlimit(η₀, port1, port2, train, V, port1.mode), 0.1, Roots.Order5(), atol=1e-2)
             elseif port1.mode == Coast
                 η₀_upper_bound = 0.0-eps()
@@ -651,8 +699,13 @@ function link(port1, port2, train::Train, V; track=false)
                     end
                 end
                 fn = NLS.NonlinearFunction((η,_) -> root_start_to_speedlimit(η[1], port1, port2, train, V, port1.mode))
-                root_prob = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-2)
-                return NLS.solve(root_prob).u
+                root_sol = NLS.IntervalNonlinearProblem(fn, [η₀_lower_bound, η₀_upper_bound], [(η₀_lower_bound+η₀_upper_bound)/2], abstol=1e-2) |> NLS.solve
+                if abs(root_sol.resid) > 0.1
+                    # not converged
+                    return NaN
+                else
+                    return root_sol.u
+                end
                 # return Roots.find_zero(η₀ -> root_start_to_speedlimit(η₀, port1, port2, train, V, port1.mode), -0.1, Roots.Order5(), atol=1e-2)
             else
                 error("Not implemented for starting mode: $(port1.mode)")
@@ -696,17 +749,29 @@ function fulfills_speedlimit(odesol, track)
     return true
 end
 
+##
+# problem instance
+track = Track(
+    50e3;
+    speedlimit=[40, 30, 13, 30., 40],
+    x_speedlimit=[0, 10e3, 20e3, 30e3, 40e3]
+)
+V = 15.0
+v₀ = 1.0
+vf = 1.0
+ports = find_ports_flat(track, train, V, v₀, vf)
+
 # depth-first search to find all sequence of links between start and finish ports (necessarily the optimal trajectory)
 graph = SimpleDiGraph(length(ports))
+link_data = Dict{Tuple{Int64, Int64}, Tuple{Float64, Float64, Float64}}()  # (port1_idx, port2_idx) => (port1 exit position, link value (NaN or η jump), port2 entry position)
+explored_edges = Set{Tuple{Int64, Int64}}()
+explorable_stack = Tuple{Port, Port}[]
 
 port_stack = Port[ports[1]]
 
 current_port_idx = 1
 current_port = pop!(port_stack)
-link_data = Dict{Tuple{Int64, Int64}, Tuple{Float64, Float64, Float64}}()  # (port1_idx, port2_idx) => (port1 exit position, link value (NaN or η jump), port2 entry position)
-explored_edges = Set{Tuple{Int64, Int64}}()
 
-explorable_stack = Tuple{Port, Port}[]
 push!(explorable_stack, [(current_port, P) for P in get_explorable_ports(current_port_idx, ports, explored_edges, graph)]...)
 
 # try to link start and finish ports directly

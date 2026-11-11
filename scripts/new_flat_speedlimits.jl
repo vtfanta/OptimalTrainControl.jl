@@ -168,6 +168,26 @@ function rhs_flat(states, p, x)
     ]
 end
 
+function rhs_flat_no_η(dstates, states, p, x)
+    t, v = states
+    current_mode, train = p.current_mode, p.train
+
+    if current_mode == MaxP
+        u = train.U̅(v)
+    elseif current_mode == Coast
+        u = zero(eltype(states))
+    elseif current_mode == MaxB
+        u = train.U̲(v)
+    else
+        error("Not implemented for mode: $(current_mode)")
+    end
+
+    dstates .= [
+        1/v,
+        (u - r(train, v)) / v
+    ]
+end
+
 flat_odefun = OrdinaryDiffEq.ODEFunction(rhs_flat, mass_matrix=LinearAlgebra.Diagonal([1, 1, 0]))
 
  @kwdef mutable struct EETCSimParams
@@ -312,9 +332,10 @@ function root_start_to_hold(η₀, port1, port2, train::Train, V, startmode::Mod
     ))
     if odesol.retcode == ReturnCode.Terminated
         if odesol[2,end] ≈ 1e-2     # terminated because speed too low
-            return -Inf
-        elseif abs(odesol[2,end] - port2.speed) > 1e-2   # terminated because speed did not reach V
-            return sign(odesol[2,end] - port2.speed) * Inf
+            return odesol[2,end] - port2.speed   # want to reach final speed at the end of track
+            # return -Inf
+        # elseif abs(odesol[2,end] - port2.speed) > 1e-2   # terminated because speed did not reach V
+            # return sign(odesol[2,end] - port2.speed) * Inf
         else    # terminated because speed reached V
             return odesol[3,end] - 0.0   # η should be 0 at the point of reaching V, TODO how about speedhold
         end
@@ -373,13 +394,17 @@ end
 function root_holdP_SL_to_subsequent_holdP(η_jump, port1, port2, train::Train, V, startmode::Mode)
     # find η_jump such that the trajectory reaches subsequent HoldP port at the cruising speed V with η=0
     odesol, _ = simulate((port1.finish, port2.finish), train, [0.0, port1.speed, 0.0+η_jump], startmode, V, ContinuousCallback(
-        (states, params, x) -> states[2] - port2.speed,
-        int -> ()
+        # (states, params, x) -> states[2] - port2.speed,
+        (states, params, x) -> states[3] - 0.0, # text for η=0
+        function (int) if port2.start ≤ int.t ≤ port2.finish
+            terminate!(int) end
+        end
     ))
+            @show η_jump, odesol.t[end], odesol[2,end], odesol[3,end], odesol.retcode
     if odesol.retcode == ReturnCode.Terminated # exited early
-        return odesol[3,end] - 0.0   # want to reach η = 0 when V is reached
+        return odesol[2,end] - port2.speed   # want to reach η=0 when V is reached
     elseif odesol.retcode == ReturnCode.Success # reached finish of subsequent HoldP
-        return odesol[3,end]    # want to reach cruising speed at the start of port2
+        return odesol[2,end] - port2.speed    # want to reach cruising speed at the end of port2
     else
         error("root_holdP_SL_to_subsequent_holdP: ODE solver failed with retcode: $(odesol.retcode)")  
     end
@@ -446,6 +471,19 @@ function link(port1, port2, train::Train, V; track=false)
                 # the above condition is always true, otherwise there is no need to connect the two ports.
 
                 # Need to exit at port1.finish with v = port1.speed and I'm looking for jump in η such that port2 is reached with η = 0 and v = port2.speed
+
+                # simulate MaxP from port1.finish until port2.speed is reached
+                odeprob = ODEProblem{true}(rhs_flat_no_η, [0.0, port1.speed], (port1.finish, port2.finish), (current_mode=MaxP, train=train))
+
+                odesol = OrdinaryDiffEq.solve(odeprob, Rodas5P(); dtmax=10.0, callback=ContinuousCallback(
+                    (states, params, x) -> states[2] - port2.speed,
+                    function (int) if port2.start ≤ int.t ≤ port2.finish
+                        terminate!(int) end
+                    end
+                ))
+
+                return odesol
+
                 η_jump_lower_bound = 0.0+eps()
                 η_jump_upper_bound = 1e3
 
@@ -457,10 +495,14 @@ function link(port1, port2, train::Train, V; track=false)
                     return NaN
                 end
 
+                @show η_jump_lower_bound, η_jump_upper_bound
+
                 while root_holdP_SL_to_subsequent_holdP(η_jump_upper_bound, port1, port2, train, V, MaxP) > 0.0
                     η_jump_upper_bound /= 2.0
                 end
                 η_jump_upper_bound *= 2.0
+
+                @show η_jump_lower_bound, η_jump_upper_bound
 
                 fn = NLS.NonlinearFunction((η,_) -> root_holdP_SL_to_subsequent_holdP(η[1], port1, port2, train, V, MaxP))
                 root_sol = NLS.IntervalNonlinearProblem(fn, [η_jump_lower_bound, η_jump_upper_bound], [(η_jump_lower_bound+η_jump_upper_bound)/2], abstol=1e-6) |> NLS.solve
@@ -470,6 +512,8 @@ function link(port1, port2, train::Train, V; track=false)
                 else
                     return root_sol.u
                 end
+            else
+                error("This should not happen: port1.speed ≥ port2.speed when connecting HoldP_SL to HoldP.")
             end
         elseif isinf(port2.finish)  # connecting from HoldP_SL port to finish port
             if port1.speed > port2.speed
@@ -818,8 +862,8 @@ else    # no link found
     println("No link found from port $(candidate_edge[1]) to port $(candidate_edge[2]).")
 end
 
-
 ##
+# explore also from the other ports
 # while !has_path(graph, firstindex(ports), lastindex(ports))
     explorable_ports = get_explorable_ports(current_port_idx, ports, explored_edges, graph)
     push!(explorable_stack, [(current_port, P) for P in explorable_ports]...)
